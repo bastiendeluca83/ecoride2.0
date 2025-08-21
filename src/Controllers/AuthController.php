@@ -40,7 +40,7 @@ class AuthController
     public function loginForm() { ob_start(); ?>
         <h1>Connexion</h1>
         <form method="post" action="/login">
-            <input type="email" name="email" placeholder="Email" required>
+            <input type="text" name="email" placeholder="Email ou pseudo" required>
             <input type="password" name="password" placeholder="Mot de passe" required>
             <button type="submit">Se connecter</button>
         </form>
@@ -93,13 +93,24 @@ class AuthController
         if (session_status() === PHP_SESSION_NONE) session_start();
         $pdo = Sql::pdo();
 
-        $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
-        $stmt->execute([$_POST['email']]);
+        $identifier = trim($_POST['email'] ?? '');
+        $password   = $_POST['password'] ?? '';
+
+        if ($identifier === '' || $password === '') {
+            http_response_code(400);
+            echo "<p>Veuillez remplir tous les champs.</p>";
+            return;
+        }
+
+        // Email OU pseudo
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ? OR pseudo = ? LIMIT 1");
+        $stmt->execute([$identifier, $identifier]);
         $user = $stmt->fetch();
 
-        if ($user && password_verify($_POST['password'], $user['password_hash'])) {
+        if ($user && password_verify($password, $user['password_hash'])) {
             if ((int)$user['is_suspended'] === 1) { http_response_code(403); echo "<p>Compte suspendu.</p>"; return; }
 
+            session_regenerate_id(true);
             $_SESSION['user'] = [
                 'id'           => (int)$user['id'],
                 'role'         => $user['role'],
@@ -109,7 +120,20 @@ class AuthController
                 'credits'      => (int)$user['credits'],
             ];
 
-            header('Location: ' . $this->publicRedirect($this->currentRedirect()));
+            // Redirection "safe" + fallback par rôle si besoin
+            $dest = $this->publicRedirect($this->currentRedirect());
+            $onlyPath = parse_url($dest, PHP_URL_PATH) ?? '/';
+            if ($dest === '/' || $onlyPath === '/login' || $onlyPath === '/signup') {
+                if ($user['role'] === 'ADMIN') {
+                    $dest = '/admin';
+                } elseif ($user['role'] === 'EMPLOYEE' || $user['role'] === 'EMPLOYE') {
+                    $dest = '/employee';
+                } else {
+                    $dest = '/dashboard';
+                }
+            }
+
+            header('Location: ' . $dest);
             exit;
         }
 
