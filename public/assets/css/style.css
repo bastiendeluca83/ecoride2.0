@@ -1,0 +1,13 @@
+/* Navbar */
+.navbar .nav-link { opacity:.95; }
+.navbar .nav-link:hover,
+.navbar .nav-link:focus { text-decoration: underline; }
+
+/* Logo */
+.navbar-brand img { max-height: 40px; height: 40px; width: auto; }
+
+/* Layout */
+main.container { min-height: 60vh; }
+
+/* Demo images */
+.img-demo { max-width: 260px; }

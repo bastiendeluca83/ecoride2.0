@@ -1,0 +1,10 @@
+# Active la réécriture d’URL pour router toutes les requêtes sur index.php
+RewriteEngine On
+
+# On laisse passer les vrais fichiers / assets
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Sinon tout va vers index.php (front‑controller)
+RewriteRule ^ index.php [L]

@@ -1,0 +1,14 @@
+{
+  "name": "deluca/ecoride",
+  "description": "site de covoiturage",
+  "type": "project",
+  "license": "MIT",
+  "autoload": {
+    "psr-4": {
+      "App\\": "src/"
+    }
+  },
+  "require": {
+    "mongodb/mongodb": "^1.19"
+  }
+}

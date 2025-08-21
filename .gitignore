@@ -1,0 +1,17 @@
+
+node_modules/
+npm-debug.log
+
+
+*.env
+.env.local
+docker-compose.override.yml
+
+/vendor/
+composer.lock
+
+*.log
+.vscode/
+.DS_Store
+*.swp
+Thumbs.db
