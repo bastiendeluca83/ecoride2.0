@@ -27,7 +27,7 @@ if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(32));
 $currentUrl = $_SERVER['REQUEST_URI'] ?? '/';
 
 /* Avatar Dicebear si aucun avatar */
-$avatarUrl = $user['avatar_url'] ?? "https://api.dicebear.com/9.x/initials/svg?seed=" . urlencode($user['pseudo'] ?? 'guest');
+$avatarUrl = $user['avatar_url'] ?? "https://api.dicebear.com/9.x/initials/svg?seed=" . urlencode($user['nom'] ?? 'guest');
 ?>
 <!doctype html>
 <html lang="fr">
@@ -79,7 +79,7 @@ $avatarUrl = $user['avatar_url'] ?? "https://api.dicebear.com/9.x/initials/svg?s
                         <a class="nav-link dropdown-toggle d-flex align-items-center text-white"
                            href="#" id="userMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <img src="<?= htmlspecialchars($avatarUrl) ?>" alt="avatar" class="avatar me-2">
-                            <span class="fw-semibold"><?= htmlspecialchars($user['pseudo'] ?? 'Profil') ?></span>
+                            <span class="fw-semibold"><?= htmlspecialchars($user['nom'] ?? 'Profil') ?></span>
                             <?php if ($credits !== null): ?>
                                 <span class="badge bg-light text-dark ms-2"><?= $credits ?> cr.</span>
                             <?php endif; ?>
@@ -161,9 +161,9 @@ $avatarUrl = $user['avatar_url'] ?? "https://api.dicebear.com/9.x/initials/svg?s
                     <form method="post" action="/signup" class="needs-validation" novalidate>
                         <input type="hidden" name="csrf" value="<?= htmlspecialchars($_SESSION['csrf']) ?>">
                         <div class="mb-3">
-                            <label for="signupPseudo" class="form-label">Pseudo</label>
-                            <input type="text" class="form-control" id="signupPseudo" name="pseudo" required>
-                            <div class="invalid-feedback">Pseudo requis.</div>
+                            <label for="signupnom" class="form-label">nom</label>
+                            <input type="text" class="form-control" id="signupnom" name="nom" required>
+                            <div class="invalid-feedback">nom requis.</div>
                         </div>
                         <div class="mb-3">
                             <label for="signupEmail" class="form-label">Adresse email</label>

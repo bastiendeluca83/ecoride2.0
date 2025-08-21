@@ -24,16 +24,16 @@ class AdminController
         if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') { http_response_code(405); return; }
 
         $pdo = $this->pdo();
-        $pseudo = trim($_POST['pseudo'] ?? '');
+        $nom = trim($_POST['nom'] ?? '');
         $email  = trim($_POST['email'] ?? '');
         $pass   = (string)($_POST['password'] ?? '');
 
-        if (!$pseudo || !$email || strlen($pass) < 8) { header('Location:/admin'); return; }
+        if (!$nom || !$email || strlen($pass) < 8) { header('Location:/admin'); return; }
 
         $hash = password_hash($pass, PASSWORD_DEFAULT);
         try {
-            $pdo->prepare("INSERT INTO users(pseudo, email, password_hash, role, credits) VALUES(:p,:e,:h,'EMPLOYEE',0)")
-                ->execute(['p'=>$pseudo,'e'=>$email,'h'=>$hash]);
+            $pdo->prepare("INSERT INTO users(nom, email, password_hash, role, credits) VALUES(:p,:e,:h,'EMPLOYEE',0)")
+                ->execute(['p'=>$nom,'e'=>$email,'h'=>$hash]);
         } catch (\Throwable $e) {}
         header('Location: /admin');
     }

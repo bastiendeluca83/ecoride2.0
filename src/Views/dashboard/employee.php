@@ -115,8 +115,8 @@ $currentUrl = $_SERVER['REQUEST_URI'] ?? '/employee';
                 <?php foreach ($incidents as $inc): ?>
                   <tr>
                     <td><?= (int)$inc['ride_id'] ?></td>
-                    <td><?= e($inc['driver_pseudo']) ?> (<?= e($inc['driver_email']) ?>)</td>
-                    <td><?= e($inc['passenger_pseudo']) ?> (<?= e($inc['passenger_email']) ?>)</td>
+                    <td><?= e($inc['driver_nom']) ?> (<?= e($inc['driver_email']) ?>)</td>
+                    <td><?= e($inc['passenger_nom']) ?> (<?= e($inc['passenger_email']) ?>)</td>
                     <td><?= e($inc['summary']) ?></td>
                     <td class="text-end">
                       <a class="btn btn-sm btn-outline-primary" href="/employee/incidents/<?= (int)$inc['ride_id'] ?>">Voir</a>

@@ -40,7 +40,7 @@ class AuthController
     public function loginForm() { ob_start(); ?>
         <h1>Connexion</h1>
         <form method="post" action="/login">
-            <input type="text" name="email" placeholder="Email ou pseudo" required>
+            <input type="text" name="email" placeholder="Email ou nom" required>
             <input type="password" name="password" placeholder="Mot de passe" required>
             <button type="submit">Se connecter</button>
         </form>
@@ -49,7 +49,7 @@ class AuthController
     public function signupForm() { ob_start(); ?>
         <h1>Créer un compte</h1>
         <form method="post" action="/signup">
-            <input name="pseudo" placeholder="Pseudo" required>
+            <input name="nom" placeholder="nom" required>
             <input type="email" name="email" placeholder="Email" required>
             <input type="password" name="password" placeholder="Mot de passe" required>
             <button type="submit">Créer</button>
@@ -65,11 +65,11 @@ class AuthController
         $initialCredits = 20;
 
         $stmt = $pdo->prepare("
-            INSERT INTO users(pseudo, email, password_hash, role, credits, is_suspended)
+            INSERT INTO users(nom, email, password_hash, role, credits, is_suspended)
             VALUES(?, ?, ?, 'USER', ?, 0)
         ");
         $stmt->execute([
-            $_POST['pseudo'],
+            $_POST['nom'],
             $_POST['email'],
             password_hash($_POST['password'], PASSWORD_BCRYPT),
             $initialCredits
@@ -79,7 +79,7 @@ class AuthController
         $_SESSION['user'] = [
             'id'           => $id,
             'role'         => 'USER',
-            'pseudo'       => $_POST['pseudo'],
+            'nom'       => $_POST['nom'],
             'avatar_url'   => null,
             'is_suspended' => 0,
             'credits'      => $initialCredits,
@@ -102,8 +102,8 @@ class AuthController
             return;
         }
 
-        // Email OU pseudo
-        $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ? OR pseudo = ? LIMIT 1");
+        // Email OU nom
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ? OR nom = ? LIMIT 1");
         $stmt->execute([$identifier, $identifier]);
         $user = $stmt->fetch();
 
@@ -114,7 +114,7 @@ class AuthController
             $_SESSION['user'] = [
                 'id'           => (int)$user['id'],
                 'role'         => $user['role'],
-                'pseudo'       => $user['pseudo'],
+                'nom'       => $user['nom'],
                 'avatar_url'   => $user['avatar_url'] ?? null,
                 'is_suspended' => (int)$user['is_suspended'],
                 'credits'      => (int)$user['credits'],

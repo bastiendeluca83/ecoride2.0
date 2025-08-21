@@ -52,7 +52,7 @@ function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
         <div class="card-body">
           <h5 class="card-title">Créer un compte employé</h5>
           <form method="post" action="/admin/employees/create" class="vstack gap-2">
-            <input class="form-control" name="pseudo" placeholder="Pseudo" required>
+            <input class="form-control" name="nom" placeholder="nom" required>
             <input class="form-control" type="email" name="email" placeholder="Email" required>
             <input class="form-control" type="password" name="password" placeholder="Mot de passe sécurisé" required>
             <button class="btn btn-primary">Créer</button>
@@ -71,7 +71,7 @@ function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
           <div class="table-responsive">
             <table class="table table-sm align-middle">
               <thead>
-                <tr><th>#</th><th>Pseudo</th><th>Email</th><th>Rôle</th><th>Crédits</th><th>Suspension</th><th>Action</th></tr>
+                <tr><th>#</th><th>nom</th><th>Email</th><th>Rôle</th><th>Crédits</th><th>Suspension</th><th>Action</th></tr>
               </thead>
               <tbody>
                 <!-- Exemple statique à remplacer par une boucle PHP -->

@@ -3,12 +3,12 @@
 $root = dirname(__DIR__, 2);
 include_once $root . '/includes/header.php';
 
-$user = $_SESSION['user'] ?? ['pseudo' => 'Utilisateur', 'credits' => 0];
+$user = $_SESSION['user'] ?? ['nom' => 'Utilisateur', 'credits' => 0];
 function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 ?>
 <div class="container my-4">
   <div class="d-flex align-items-center justify-content-between mb-3">
-    <h1 class="h3 mb-0">Bienvenue, <?= e($user['pseudo']) ?></h1>
+    <h1 class="h3 mb-0">Bienvenue, <?= e($user['nom']) ?></h1>
     <a class="btn btn-outline-secondary" href="/logout">Déconnexion</a>
   </div>
 
@@ -23,6 +23,63 @@ function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
       </div>
     </div>
   </div>
+  <!-- Profil -->
+  <div class="container my-4 d-flex justify-content-center">
+  <div class="card border-0 shadow rounded-4" style="max-width: 540px; width: 100%;">
+    <div class="card-header bg-white border-0 pt-4 pb-0">
+      <h5 class="fw-bold mb-1">Mon Profil</h5>
+      <p class="text-muted mb-0">Bienvenue sur EcoRide</p>
+    </div>
+
+    <div class="card-body px-4 pb-4">
+      <!-- Lignes d'infos, design épuré comme le modal -->
+      <div class="py-3 border-bottom">
+        <div class="text-muted small mb-1">Nom</div>
+        <div class="fs-5 fw-semibold">
+          <!-- PHP dynamique : -->
+          <?= htmlspecialchars($user['nom'] ?? '—') ?>
+        </div>
+      </div>
+
+      <div class="py-3 border-bottom">
+        <div class="text-muted small mb-1">Prénom</div>
+        <div class="fs-5 fw-semibold">
+          <?= e($user['prenom'] ?? '—') ?>
+        </div>
+      </div>
+
+      <div class="py-3 border-bottom">
+        <div class="text-muted small mb-1">Adresse</div>
+        <div class="fs-5 fw-semibold">
+          <?= htmlspecialchars($user['adresse'] ?? '—') ?>
+        </div>
+      </div>
+
+      <div class="py-3 border-bottom">
+        <div class="text-muted small mb-1">Téléphone</div>
+        <div class="fs-5 fw-semibold">
+          <?= htmlspecialchars($user['telephone'] ?? '—') ?>
+        </div>
+      </div>
+
+      <div class="py-3">
+        <div class="text-muted small mb-1">Email</div>
+        <div class="fs-5 fw-semibold">
+          <?= htmlspecialchars($user['email'] ?? '—') ?>
+        </div>
+      </div>
+
+      <!-- Bouton style "Se connecter" (vert) pour rappeler l'image 1, optionnel -->
+      <div class="mt-3">
+        <a href="/profil/edit" class="btn btn-success w-100 py-2 fw-semibold rounded-3">
+          Modifier mes informations
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+    
+      
 
   <!-- Réservations à venir -->
   <div class="card shadow-sm mb-4">

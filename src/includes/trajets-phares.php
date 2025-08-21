@@ -7,7 +7,7 @@ try { $pdo = new PDO($dsn, $user, $pass, [ PDO::ATTR_ERRMODE => PDO::ERRMODE_EXC
 catch (Throwable $e) { echo '<div class="alert alert-danger">Erreur connexion DB : ' . htmlspecialchars($e->getMessage()) . '</div>'; return; }
 
 $sql = "
-SELECT r.id, r.from_city, r.to_city, r.date_start, r.price, r.is_electric_cached, u.pseudo
+SELECT r.id, r.from_city, r.to_city, r.date_start, r.price, r.is_electric_cached, u.nom
 FROM rides r
 JOIN users u ON u.id = r.driver_id
 ORDER BY r.created_at DESC
@@ -27,7 +27,7 @@ $rows = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
           <span class="text-muted"> — <?= htmlspecialchars($r['date_start']) ?></span>
           <span class="ms-2"><?= (int)$r['price'] ?> cr.</span>
           <?php if ($r['is_electric_cached']): ?><span class="ms-2">⚡</span><?php endif; ?>
-          <span class="ms-2 text-muted">par <?= htmlspecialchars($r['pseudo']) ?></span>
+          <span class="ms-2 text-muted">par <?= htmlspecialchars($r['nom']) ?></span>
         </a>
       <?php endforeach; ?>
     </div>
