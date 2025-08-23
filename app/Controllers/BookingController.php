@@ -1,3 +1,4 @@
+<?php
 // BookingController::confirm()
 use App\Db\Sql;
 

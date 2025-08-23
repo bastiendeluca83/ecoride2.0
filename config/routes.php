@@ -1,38 +1,110 @@
 <?php
-use App\Controllers\TrajetController;
+declare(strict_types=1);
+
+use App\Controllers\HomeController;
 use App\Controllers\RideController;
 use App\Controllers\AuthController;
-use App\Controllers\DashboardController;
-use App\Controllers\EmployeeController;
-use App\Controllers\AdminController;
 
-return [
-  // Accueil + Rides
-  ['GET','/',            [RideController::class,'home']],
-  ['GET','/rides',       [RideController::class,'list']],
-  ['POST','/search',     [RideController::class,'search']],
-  ['GET','/rides/show',  [RideController::class,'show']],
-  ['GET','/trajet',      [TrajetController::class,'show']], // alias
+// Dashboards
+use App\Controllers\DashboardGatewayController; // NOUVEAU: passerelle /dashboard
+use App\Controllers\UserDashboardController;    // USER
+use App\Controllers\EmployeeController;         // EMPLOYEE
+use App\Controllers\AdminController;            // ADMIN
 
-  // Auth
-  ['GET','/signup',      [AuthController::class,'signupForm']],
-  ['POST','/signup',     [AuthController::class,'signup']],
-  ['GET','/login',       [AuthController::class,'loginForm']],
-  ['POST','/login',      [AuthController::class,'login']],
-  ['POST','/logout',     [AuthController::class,'logout']], // POST (nav)
-  ['GET','/logout',      [AuthController::class,'logout']], // compat GET
+use App\Controllers\StaticController;
 
-  // Espace utilisateur
-  ['GET','/dashboard',   [DashboardController::class,'index']],
+/**
+ * Routes EcoRide (MVC)
+ * Toutes les vues passent par app/Views/layouts/base.php via BaseController::render()
+ */
 
-  // Réservations / trajets
-  ['POST','/rides/book', [RideController::class,'book']],
+/* =======================
+   Public / Visiteur
+   ======================= */
+$router->get('/', [HomeController::class, 'index']);
 
-  // Employé (Mongo)
-  ['GET','/employee',          [EmployeeController::class,'index']],
-  ['POST','/employee/reviews', [EmployeeController::class,'moderate']],
+/* Rides (recherche + résultats + détail + réserver) */
+$router->map(['GET','POST'], '/rides',     [RideController::class, 'list']);   // remplace /search
+$router->get('/rides/show',                [RideController::class, 'show']);
+$router->post('/rides/book',               [RideController::class, 'book']);
 
-  // Admin
-  ['GET','/admin',             [AdminController::class,'index']],
-  ['POST','/admin/suspend',    [AdminController::class,'suspendAccount']],
-];
+/* Pages statiques */
+$router->get('/mentions-legales',          [StaticController::class, 'mentions']);
+
+/* =======================
+   Auth
+   ======================= */
+$router->get('/signup',                    [AuthController::class, 'signupForm']);
+$router->post('/signup',                   [AuthController::class, 'signup']);
+$router->get('/login',                     [AuthController::class, 'loginForm']);
+$router->post('/login',                    [AuthController::class, 'login']);
+$router->post('/logout',                   [AuthController::class, 'logout']);
+$router->get('/logout',                    [AuthController::class, 'logout']); // toléré
+
+/* =======================
+   Dashboard – Passerelle
+   ======================= */
+/**
+ * /dashboard NE REND AUCUNE VUE.
+ * Il détecte le rôle dans la session et redirige vers :
+ * - /user/dashboard
+ * - /employee/dashboard
+ * - /admin/dashboard
+ * => évite toute boucle de redirection.
+ */
+$router->get('/dashboard',                 [DashboardGatewayController::class, 'route']);
+
+/* =======================
+   Espace UTILISATEUR (USER)
+   ======================= */
+$router->get('/user/dashboard',            [UserDashboardController::class, 'index']);
+
+/* Profil + véhicules (USER) */
+$router->get('/user/profile',              [UserDashboardController::class, 'profile']);
+$router->post('/user/profile/update',      [UserDashboardController::class, 'updateProfile']);
+$router->post('/user/vehicle/add',         [UserDashboardController::class, 'addVehicle']);
+$router->post('/user/vehicle/edit',        [UserDashboardController::class, 'editVehicle']);
+$router->post('/user/vehicle/delete',      [UserDashboardController::class, 'deleteVehicle']);
+
+/* Saisir un trajet (chauffeur) */
+$router->get('/user/ride/create',          [UserDashboardController::class, 'createRide']);
+$router->post('/user/ride/create',         [UserDashboardController::class, 'createRide']);
+
+/* Historique + démarrer/arrêter (chauffeur) */
+$router->get('/user/history',              [UserDashboardController::class, 'history']);
+$router->post('/user/ride/start',          [UserDashboardController::class, 'startRide']);
+$router->post('/user/ride/end',            [UserDashboardController::class, 'endRide']);
+
+/* --- Alias rétro-compat (à retirer plus tard) --- */
+$router->get('/profile',                   [UserDashboardController::class, 'profile']);
+$router->post('/profile/update',           [UserDashboardController::class, 'updateProfile']);
+$router->post('/vehicle/add',              [UserDashboardController::class, 'addVehicle']);
+$router->post('/vehicle/edit',             [UserDashboardController::class, 'editVehicle']);
+$router->post('/vehicle/delete',           [UserDashboardController::class, 'deleteVehicle']);
+$router->get('/ride/create',               [UserDashboardController::class, 'createRide']);
+$router->post('/ride/create',              [UserDashboardController::class, 'createRide']);
+$router->get('/history',                   [UserDashboardController::class, 'history']);
+$router->post('/ride/start',               [UserDashboardController::class, 'startRide']);
+$router->post('/ride/end',                 [UserDashboardController::class, 'endRide']);
+
+/* =======================
+   Espace EMPLOYÉ (EMPLOYEE)
+   ======================= */
+$router->get('/employee/dashboard',        [EmployeeController::class, 'index']);
+$router->post('/employee/reviews',         [EmployeeController::class, 'moderate']); // valider/refuser avis
+
+/* --- Alias rétro-compat --- */
+$router->get('/employee',                  [EmployeeController::class, 'index']);
+
+/* =======================
+   Espace ADMIN (ADMIN)
+   ======================= */
+$router->get('/admin/dashboard',           [AdminController::class, 'index']);
+$router->post('/admin/suspend',            [AdminController::class, 'suspendAccount']);   // suspendre user/employé
+$router->post('/admin/employee/suspend',   [AdminController::class, 'suspendEmployee']);  // suspendre un employé
+$router->post('/admin/users/suspend',       [AdminController::class, 'suspendUser']);      // suspendre un utilisateur
+$router->post('/admin/employees/create', [AdminController::class, 'createEmployee']);
+
+
+/* --- Alias rétro-compat --- */
+$router->get('/admin',                     [AdminController::class, 'index']);
