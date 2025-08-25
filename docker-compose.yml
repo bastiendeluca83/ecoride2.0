@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
 
   # PHP + Apache
@@ -5,29 +7,36 @@ services:
     build: .
     container_name: ecoride_web
     ports:
-      - "8080:80"   # Accès direct à Apache pour les tests
+      - "8080:80"   # Accès direct à Apache (utile en dev)
     volumes:
       - ./:/var/www/html
       - ./docker/php/php.ini:/usr/local/etc/php/conf.d/custom.ini
-      # Monte ton vhost custom pour pointer vers /public
+      # VHost Apache pointant vers /public
       - ./apache/default.conf:/etc/apache2/sites-available/000-default.conf:ro
     depends_on:
       - db
       - mongo
     environment:
+      # SQL
       DB_HOST: db
       DB_NAME: ecoride
       DB_USER: ecoride_user
       DB_PASS: ecoride_password
+      # Mongo (sans authentification)
       MONGO_HOST: mongo
       MONGO_PORT: 27017
       MONGO_DB: ecoride
-    # Active mod_rewrite + (ré)active le site, puis démarre Apache
+      MONGO_USER: ""
+      MONGO_PASS: ""
+      MONGO_AUTHDB: ""
+      # Divers
+      TIMEZONE: Europe/Paris
+      DEBUG: "1"
     command: bash -lc "a2enmod rewrite headers && a2ensite 000-default && apache2-foreground"
     networks:
       - ecoride_network
 
-  # Nginx en reverse proxy
+  # Nginx en reverse proxy vers Apache/PHP
   nginx:
     image: nginx:alpine
     container_name: dev_nginx
@@ -76,7 +85,7 @@ services:
     networks:
       - ecoride_network
 
-  # Base NoSQL MongoDB
+  # Base NoSQL MongoDB (sans auth en dev)
   mongo:
     image: mongo:7
     container_name: ecoride_mongo

@@ -18,27 +18,36 @@ require __DIR__ . '/Paths.php'; // définit APP_PATH, CONFIG_PATH, etc.
 if (is_file(CONFIG_PATH . '/env.php')) {
     /** @var array $ENV optionnel */
     $ENV = require CONFIG_PATH . '/env.php';
-    // Fuseau horaire depuis env sinon Europe/Paris
-    if (!empty($ENV['TIMEZONE']) && is_string($ENV['TIMEZONE'])) {
-        @date_default_timezone_set($ENV['TIMEZONE']);
-    } else {
-        @date_default_timezone_set('Europe/Paris');
+
+    // Injecte aussi dans $_ENV et variables de process (utile sous Apache + Docker)
+    if (is_array($ENV)) {
+        foreach ($ENV as $k => $v) {
+            if (!is_string($k)) continue;
+            $val = is_scalar($v) ? (string)$v : json_encode($v, JSON_UNESCAPED_SLASHES);
+            $_ENV[$k] = $val;
+            putenv($k . '=' . $val);
+        }
     }
 
+    // Fuseau horaire depuis env sinon Europe/Paris
+    $tz = isset($ENV['TIMEZONE']) && is_string($ENV['TIMEZONE']) ? $ENV['TIMEZONE'] : 'Europe/Paris';
+    @date_default_timezone_set($tz);
+
     // Mode debug (affichage erreurs)
-    if (!empty($ENV['DEBUG'])) {
+    $debug = !empty($ENV['DEBUG']);
+    if ($debug) {
         ini_set('display_errors', '1');
         ini_set('display_startup_errors', '1');
         error_reporting(E_ALL);
     } else {
         ini_set('display_errors', '0');
-        error_reporting(E_ALL & ~E_NOTICE & ~E_STRICT & ~E_DEPRECATED);
+        error_reporting(E_ALL & ~E_NOTICE & ~E_DEPRECATED);
     }
 } else {
     // Valeurs par défaut si pas d'env.php
     @date_default_timezone_set('Europe/Paris');
     ini_set('display_errors', '0');
-    error_reporting(E_ALL & ~E_NOTICE & ~E_STRICT & ~E_DEPRECATED);
+    error_reporting(E_ALL & ~E_NOTICE & ~E_DEPRECATED);
 }
 
 // ---------------------------------------------------------------------
