@@ -13,7 +13,7 @@ if (!function_exists('e')) {
         <h1 class="h2 mb-1 fw-bold text-dark">Bienvenue, <?= e($user['nom'] ?? 'Utilisateur') ?></h1>
         <p class="text-muted mb-0">Gérez vos trajets et votre profil EcoRide</p>
       </div>
-      <a class="btn btn-outline-danger px-4 py-2 rounded-pill" href="/logout">
+      <a class="btn btn-outline-danger px-4 py-2 rounded-pill" href="<?= BASE_URL ?>logout">
         <i class="fas fa-sign-out-alt me-2"></i>Déconnexion
       </a>
     </div>
@@ -97,7 +97,7 @@ if (!function_exists('e')) {
             </div>
 
             <div class="mt-3">
-              <a href="/user/profile" class="btn btn-success w-100 py-2 fw-semibold rounded-3 d-flex align-items-center justify-content-center">
+              <a href="<?= BASE_URL ?>profile/edit" class="btn btn-success w-100 py-2 fw-semibold rounded-3 d-flex align-items-center justify-content-center">
                 <i class="fas fa-edit me-2"></i>Modifier
               </a>
             </div>
@@ -147,7 +147,7 @@ if (!function_exists('e')) {
                     </div>
 
                     <a class="btn btn-outline-danger btn-sm w-100 rounded-3 fw-semibold"
-                       href="/user/ride/cancel?id=<?= (int)($res['id'] ?? 0) ?>">
+                       href="<?= BASE_URL ?>user/ride/cancel?id=<?= (int)($res['id'] ?? 0) ?>">
                       <i class="fas fa-times me-1"></i>Annuler
                     </a>
                   </div>
@@ -160,7 +160,7 @@ if (!function_exists('e')) {
             <i class="fas fa-calendar-times fa-3x text-muted mb-2"></i>
             <h6 class="text-muted mb-2">Aucune réservation à venir</h6>
             <small class="text-muted mb-3 d-block">Explorez nos trajets disponibles</small>
-            <a href="/rides" class="btn btn-success px-3 py-2 rounded-pill btn-sm">
+            <a href="<?= BASE_URL ?>rides" class="btn btn-success px-3 py-2 rounded-pill btn-sm">
               <i class="fas fa-search me-1"></i>Rechercher
             </a>
           </div>
@@ -210,14 +210,14 @@ if (!function_exists('e')) {
 
                     <div class="d-grid gap-1">
                       <div class="btn-group" role="group">
-                        <a class="btn btn-outline-success btn-sm" href="/user/ride/start?id=<?= (int)($ride['id'] ?? 0) ?>">
+                        <a class="btn btn-outline-success btn-sm" href="<?= BASE_URL ?>user/ride/start?id=<?= (int)($ride['id'] ?? 0) ?>">
                           <i class="fas fa-play me-1"></i>Démarrer
                         </a>
-                        <a class="btn btn-outline-info btn-sm" href="/user/ride/end?id=<?= (int)($ride['id'] ?? 0) ?>">
+                        <a class="btn btn-outline-info btn-sm" href="<?= BASE_URL ?>user/ride/end?id=<?= (int)($ride['id'] ?? 0) ?>">
                           <i class="fas fa-stop me-1"></i>Arrivée
                         </a>
                       </div>
-                      <a class="btn btn-outline-danger btn-sm" href="/user/ride/cancel?id=<?= (int)($ride['id'] ?? 0) ?>">
+                      <a class="btn btn-outline-danger btn-sm" href="<?= BASE_URL ?>user/ride/cancel?id=<?= (int)($ride['id'] ?? 0) ?>">
                         <i class="fas fa-times me-1"></i>Annuler le trajet
                       </a>
                     </div>
@@ -235,7 +235,7 @@ if (!function_exists('e')) {
         <?php endif; ?>
 
         <div class="text-center mt-3">
-          <a class="btn btn-success px-3 py-2 rounded-pill fw-semibold btn-sm" href="/user/ride/create">
+          <a class="btn btn-success px-3 py-2 rounded-pill fw-semibold btn-sm" href="<?= BASE_URL ?>user/ride/create">
             <i class="fas fa-plus me-1"></i>Publier un trajet
           </a>
         </div>
