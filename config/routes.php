@@ -6,7 +6,7 @@ use App\Controllers\RideController;
 use App\Controllers\AuthController;
 
 // Dashboards
-use App\Controllers\DashboardGatewayController; // NOUVEAU: passerelle /dashboard
+use App\Controllers\DashboardGatewayController; // passerelle /dashboard
 use App\Controllers\UserDashboardController;    // USER
 use App\Controllers\EmployeeController;         // EMPLOYEE
 use App\Controllers\AdminController;            // ADMIN
@@ -66,6 +66,13 @@ $router->post('/user/vehicle/add',         [UserDashboardController::class, 'add
 $router->post('/user/vehicle/edit',        [UserDashboardController::class, 'editVehicle']);
 $router->post('/user/vehicle/delete',      [UserDashboardController::class, 'deleteVehicle']);
 
+/* Profil EDIT (nouveau) */
+$router->get('/profile/edit',               [UserDashboardController::class, 'editForm']);
+$router->post('/profile/edit',              [UserDashboardController::class, 'update']);
+
+/* Alias ancien lien : /profile/edit -> redirige vers /profil/edit */
+$router->get('/profile/edit',              [UserDashboardController::class, 'redirectToProfilEdit']);
+
 /* Saisir un trajet (chauffeur) */
 $router->get('/user/ride/create',          [UserDashboardController::class, 'createRide']);
 $router->post('/user/ride/create',         [UserDashboardController::class, 'createRide']);
@@ -102,9 +109,8 @@ $router->get('/employee',                  [EmployeeController::class, 'index'])
 $router->get('/admin/dashboard',           [AdminController::class, 'index']);
 $router->post('/admin/suspend',            [AdminController::class, 'suspendAccount']);   // suspendre user/employé
 $router->post('/admin/employee/suspend',   [AdminController::class, 'suspendEmployee']);  // suspendre un employé
-$router->post('/admin/users/suspend',       [AdminController::class, 'suspendUser']);      // suspendre un utilisateur
-$router->post('/admin/employees/create', [AdminController::class, 'createEmployee']);
-
+$router->post('/admin/users/suspend',      [AdminController::class, 'suspendUser']);      // suspendre un utilisateur
+$router->post('/admin/employees/create',   [AdminController::class, 'createEmployee']);
 
 /* --- Alias rétro-compat --- */
 $router->get('/admin',                     [AdminController::class, 'index']);
