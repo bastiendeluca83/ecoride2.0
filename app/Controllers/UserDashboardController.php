@@ -44,7 +44,8 @@ final class UserDashboardController extends BaseController
         $id   = (int)($_SESSION['user']['id'] ?? 0);
         $user = $id ? (User::findById($id) ?? ($_SESSION['user'] ?? null)) : ($_SESSION['user'] ?? null);
 
-        $this->render('dashboard/profile_edit', [
+        // <- chemin de vue déplacé vers pages/
+        $this->render('pages/profile_edit', [
             'title' => 'Modifier mon profil',
             'user'  => $user,
         ]);
@@ -158,7 +159,8 @@ final class UserDashboardController extends BaseController
             }
         }
 
-        $this->render('dashboard/vehicle_form', [
+        // <- chemin de vue déplacé vers pages/
+        $this->render('pages/vehicle_form', [
             'title'   => $id ? 'Modifier mon véhicule' : 'Ajouter un véhicule',
             'vehicle' => $vehicle
         ]);
