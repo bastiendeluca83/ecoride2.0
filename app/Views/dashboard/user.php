@@ -3,12 +3,30 @@
 /** @var array $reservations */
 /** @var array $rides */
 /** @var array $vehicles */
+/** @var bool  $profile_incomplete */
+/** @var array $missing_fields */
 if (!function_exists('e')) {
   function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 }
 ?>
 <div class="container-fluid px-4 py-5" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); min-height: 100vh;">
   <div class="container">
+
+    <?php if (!empty($profile_incomplete)): ?>
+      <div class="alert alert-warning alert-dismissible fade show d-flex align-items-center justify-content-between mb-4" role="alert" style="border-left:4px solid #ffc107;">
+        <div class="me-3">
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          <a href="<?= BASE_URL ?>profil/edit" class="fw-semibold text-decoration-none text-reset">
+            Profil incomplet — cliquez ici pour le compléter
+          </a>
+          <?php if (!empty($missing_fields)): ?>
+            <small class="text-muted ms-2">(champs manquants : <?= e(implode(', ', $missing_fields)) ?>)</small>
+          <?php endif; ?>
+        </div>
+        <a class="btn-close" aria-label="Fermer" href="<?= BASE_URL ?>user/dashboard?dismiss_profile_notice=1"></a>
+      </div>
+    <?php endif; ?>
+
     <div class="d-flex align-items-center justify-content-between mb-5">
       <div>
         <h1 class="h2 mb-1 fw-bold text-dark">Bienvenue, <?= e($user['prenom'] ?? '') ?> <?= e($user['nom'] ?? 'Utilisateur') ?></h1>

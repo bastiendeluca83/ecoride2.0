@@ -1,28 +1,40 @@
 <?php
+declare(strict_types=1);
+
 namespace App\Models;
 
-
+use App\Db\Sql;
 use PDO;
 
-
-class Review extends BaseModels
+final class Review
 {
-public static function create(int $chauffeurId,int $passagerId,int $note,string $comment,string $status='EN_ATTENTE'): int {
-$pdo = self::pdo();
-$pdo->prepare("INSERT INTO avis(chauffeur_id,passager_id,note,commentaire,status,created_at) VALUES(:c,:p,:n,:m,:s,NOW())")
-->execute([':c'=>$chauffeurId, ':p'=>$passagerId, ':n'=>$note, ':m'=>$comment, ':s'=>$status]);
-return (int)$pdo->lastInsertId();
+    private static function pdo(): PDO { return Sql::pdo(); }
+
+    public static function summaryForUser(int $userId): array
+    {
+        $st = self::pdo()->prepare(
+            "SELECT ROUND(AVG(rating),1) AS avg_rating, COUNT(*) AS cnt
+               FROM reviews WHERE target_user_id=:u AND status='APPROVED'"
+        );
+        $st->execute([':u'=>$userId]);
+        $row = $st->fetch(PDO::FETCH_ASSOC) ?: ['avg_rating'=>null,'cnt'=>0];
+        return ['avg'=> (float)($row['avg_rating'] ?? 0), 'count'=>(int)$row['cnt']];
+    }
+
+    public static function recentForUser(int $userId, int $limit=3): array
+    {
+        $st = self::pdo()->prepare(
+          "SELECT r.id, r.rating, r.comment, r.role, r.created_at,
+                  u.nom AS reviewer_name
+             FROM reviews r
+             JOIN users u ON u.id = r.reviewer_user_id
+            WHERE r.target_user_id=:u AND r.status='APPROVED'
+            ORDER BY r.created_at DESC
+            LIMIT :lim"
+        );
+        $st->bindValue(':u', $userId, PDO::PARAM_INT);
+        $st->bindValue(':lim', $limit, PDO::PARAM_INT);
+        $st->execute();
+        return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
 }
-
-
-public static function validate(int $id): bool { return self::pdo()->prepare("UPDATE avis SET status='VALIDE' WHERE id=:id")->execute([':id'=>$id]); }
-
-
-public static function refuse(int $id): bool { return self::pdo()->prepare("UPDATE avis SET status='REFUSE' WHERE id=:id")->execute([':id'=>$id]); }
-
-
-public static function listByDriver(int $chauffeurId,string $status='VALIDE'): array { return self::all("SELECT * FROM avis WHERE chauffeur_id=:c AND status=:s ORDER BY created_at DESC", [':c'=>$chauffeurId, ':s'=>$status]); }
-}
-
-
-

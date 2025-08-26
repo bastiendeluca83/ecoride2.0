@@ -109,10 +109,11 @@ class User
                            phone      AS telephone,
                            address    AS adresse,
                            credits,
-                           role
+                           role,
+                           avatar_path
                     FROM users WHERE id = :id';
         } else {
-            $sql = 'SELECT id, nom, prenom, email, telephone, adresse, credits, role, bio
+            $sql = 'SELECT id, nom, prenom, email, telephone, adresse, credits, role, bio, avatar_path
                     FROM users WHERE id = :id';
         }
         try { return self::one($sql, [':id'=>$id]); }
@@ -122,14 +123,15 @@ class User
     /**
      * $data accepte FR (nom, prenom, telephone, adresse, email, bio)
      * et/ou EN (last_name, first_name, phone, address, email)
+     * + on autorise "avatar_path" au cas où (même si tu utilises updateAvatar()).
      */
     public static function updateProfile(int $id, array $data): bool
     {
         $useEN = self::useEnglish();
         $map = $useEN
-            ? ['nom'=>'last_name','prenom'=>'first_name','telephone'=>'phone','adresse'=>'address','email'=>'email','bio'=>'bio',
+            ? ['nom'=>'last_name','prenom'=>'first_name','telephone'=>'phone','adresse'=>'address','email'=>'email','bio'=>'bio','avatar_path'=>'avatar_path',
                'last_name'=>'last_name','first_name'=>'first_name','phone'=>'phone','address'=>'address']
-            : ['nom'=>'nom','prenom'=>'prenom','telephone'=>'telephone','adresse'=>'adresse','email'=>'email','bio'=>'bio',
+            : ['nom'=>'nom','prenom'=>'prenom','telephone'=>'telephone','adresse'=>'adresse','email'=>'email','bio'=>'bio','avatar_path'=>'avatar_path',
                'last_name'=>'nom','first_name'=>'prenom','phone'=>'telephone','address'=>'adresse'];
 
         $set = []; $p = [':id'=>$id];
@@ -153,5 +155,17 @@ class User
         try { return self::pdo()->prepare('UPDATE users SET password_hash = :h WHERE id = :id')
                                  ->execute([':h'=>$hash, ':id'=>$id]); }
         catch (\Throwable $e) { error_log('[User::updatePassword] '.$e->getMessage()); return false; }
+    }
+
+    /** Mise à jour dédiée de l’avatar */
+    public static function updateAvatar(int $id, string $path): bool
+    {
+        try {
+            return self::pdo()->prepare('UPDATE users SET avatar_path = :a WHERE id = :id')
+                              ->execute([':a'=>$path, ':id'=>$id]);
+        } catch (\Throwable $e) {
+            error_log('[User::updateAvatar] '.$e->getMessage());
+            return false;
+        }
     }
 }

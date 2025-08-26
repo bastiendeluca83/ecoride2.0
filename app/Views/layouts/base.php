@@ -34,9 +34,12 @@ if (empty($_SESSION['csrf'])) {
 }
 $currentUrl = $_SERVER['REQUEST_URI'] ?? '/';
 
-$avatarUrl = $user['avatar_url'] ?? "https://api.dicebear.com/9.x/initials/svg?seed=" . urlencode($user['nom'] ?? 'guest');
+/* === AVATAR : utilise users.avatar_path si présent, sinon fallback Dicebear === */
+$avatarPath = $user['avatar_path'] ?? '';
+if ($avatarPath && $avatarPath[0] !== '/') { $avatarPath = '/'.$avatarPath; }
+$avatarUrl = $avatarPath ?: ("https://api.dicebear.com/9.x/initials/svg?seed=" . urlencode($user['nom'] ?? 'guest'));
 
-// Gestion messages d’erreur pour le modal (hérités de ton header fourni)
+/* Messages d’erreur (modal) */
 $errorMessage = '';
 if (isset($_GET['error'])) {
     switch ($_GET['error']) {
@@ -46,7 +49,7 @@ if (isset($_GET['error'])) {
     }
 }
 
-// Récupération & purge des flash messages
+/* Flash messages */
 $flashes = $_SESSION['flash'] ?? [];
 unset($_SESSION['flash']);
 ?>
@@ -75,27 +78,25 @@ unset($_SESSION['flash']);
         integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
         crossorigin="anonymous">
 
-  <!-- Font Awesome (tes pages utilisent des icônes .fas) -->
+  <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
         integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLbJ9r9Z9Z8iG9Qv3YmxPzQeQhV9GgQ3fGmJ2q7ZkJkF6H8l9Vq6VZ8Wc2vYx04hA=="
         crossorigin="anonymous" referrerpolicy="no-referrer" />
 
-  <!-- Styles globaux (garde tes deux fichiers si tu utilises les deux) -->
+  <!-- Styles globaux -->
   <link rel="stylesheet" href="/assets/css/style.css">
   <link rel="stylesheet" href="/assets/css/app.css">
 
-  <!-- Styles inline légers du header fourni -->
   <style>
     .navbar .dropdown-menu { z-index: 2000; }
     .avatar { width:32px; height:32px; object-fit:cover; border-radius:50%; }
   </style>
 
-  <!-- Styles spécifiques à la page -->
   <?= $pageStyles ?>
 </head>
 <body class="<?= htmlspecialchars($bodyClass) ?> bg-light d-flex flex-column min-vh-100">
 
-  <!-- NAVBAR (reprend exactement ta structure) -->
+  <!-- NAVBAR -->
   <nav class="navbar navbar-expand-lg navbar-light" style="background-color:#18a558;">
     <div class="container">
       <a class="navbar-brand d-flex align-items-center text-white" href="/">
@@ -161,7 +162,7 @@ unset($_SESSION['flash']);
     </div>
   </nav>
 
-  <!-- MODAL AUTH (affichée si non connecté) -->
+  <!-- MODAL AUTH -->
   <?php if (!$user): ?>
     <div class="modal fade" id="authModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">
@@ -298,7 +299,6 @@ unset($_SESSION['flash']);
   <!-- CONTENU DE PAGE -->
   <main class="flex-grow-1 py-4">
     <div class="container">
-      <!-- Gabarit central : 10/12 col -->
       <div class="row justify-content-center">
         <div class="col-12 col-lg-10 col-xl-8">
           <?= $content ?? '' ?>
@@ -307,7 +307,7 @@ unset($_SESSION['flash']);
     </div>
   </main>
 
-  <!-- FOOTER (mail + mentions légales — US1) -->
+  <!-- FOOTER -->
   <footer class="mt-auto border-top bg-white">
     <div class="container py-3 d-flex flex-column flex-sm-row justify-content-between align-items-center">
       <div class="small text-muted">
@@ -328,7 +328,7 @@ unset($_SESSION['flash']);
           integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
           crossorigin="anonymous"></script>
 
-  <!-- Validation Bootstrap + vérif mot de passe (repris de ton header/footer) -->
+  <!-- Validation Bootstrap -->
   <script>
   (() => {
     'use strict';
@@ -350,10 +350,8 @@ unset($_SESSION['flash']);
   })();
   </script>
 
-  <!-- JS globaux -->
   <script src="/assets/js/app.js"></script>
 
-  <!-- Scripts spécifiques à la page -->
   <?= $pageScripts ?>
 </body>
 </html>

@@ -7,7 +7,9 @@ use App\Security\Security;
 use App\Models\User;
 use App\Models\Ride;
 use App\Models\Booking;
-use App\Models\Vehicle; // <-- AJOUT
+use App\Models\Vehicle;
+use App\Models\UserPreferences;
+use App\Models\Review;
 
 final class UserDashboardController extends BaseController
 {
@@ -26,14 +28,14 @@ final class UserDashboardController extends BaseController
         // Données SQL pour dashboard
         $reservations = $uid ? Booking::forPassengerUpcoming($uid) : [];
         $rides       = $uid ? Ride::forDriverUpcoming($uid) : [];
-        $vehicles    = $uid ? Vehicle::forUser($uid) : []; // <-- AJOUT
+        $vehicles    = $uid ? Vehicle::forUser($uid) : [];
 
         $this->render('dashboard/user', [
             'title'        => 'Espace utilisateur',
             'user'         => $user,
             'reservations' => $reservations,
             'rides'        => $rides,
-            'vehicles'     => $vehicles, // <-- AJOUT
+            'vehicles'     => $vehicles,
         ]);
     }
 
@@ -44,10 +46,20 @@ final class UserDashboardController extends BaseController
         $id   = (int)($_SESSION['user']['id'] ?? 0);
         $user = $id ? (User::findById($id) ?? ($_SESSION['user'] ?? null)) : ($_SESSION['user'] ?? null);
 
-        // <- chemin de vue déplacé vers pages/
+        // Préférences utilisateur (si le modèle existe)
+        $prefs = [];
+        foreach (['get','findByUserId','forUser'] as $m) {
+            if (method_exists(UserPreferences::class, $m)) {
+                $prefs = UserPreferences::$m($id) ?? [];
+                break;
+            }
+        }
+
+        // <- vues déplacées dans pages/
         $this->render('pages/profile_edit', [
             'title' => 'Modifier mon profil',
             'user'  => $user,
+            'prefs' => $prefs,
         ]);
     }
 
@@ -81,6 +93,68 @@ final class UserDashboardController extends BaseController
             if ($v !== null && $v !== '') { $data[$k] = is_string($v) ? trim($v) : $v; }
         }
 
+        /* ---------- Upload avatar (optionnel) ---------- */
+        $avatarUpdated = false;
+        if (!empty($_FILES['avatar']) && is_array($_FILES['avatar']) && ($_FILES['avatar']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+            $f = $_FILES['avatar'];
+            if ($f['error'] === UPLOAD_ERR_OK && is_uploaded_file($f['tmp_name'])) {
+                $allowed = ['image/jpeg','image/png','image/webp','image/gif'];
+                $mime = @mime_content_type($f['tmp_name']) ?: '';
+                $sizeOk = (int)$f['size'] <= 2 * 1024 * 1024; // 2 Mo
+                if (in_array($mime, $allowed, true) && $sizeOk) {
+                    $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION) ?: 'jpg');
+                    $baseDir = dirname(__DIR__, 2) . '/public/uploads/avatars';
+                    if (!is_dir($baseDir)) @mkdir($baseDir, 0775, true);
+                    $filename = 'u'.$id.'_'.time().'.'.$ext;
+                    $dest = $baseDir . '/' . $filename;
+                    if (@move_uploaded_file($f['tmp_name'], $dest)) {
+                        $relPath = 'uploads/avatars/' . $filename;
+                        // Tente la méthode dédiée si elle existe, sinon via updateProfile
+                        if (method_exists(User::class, 'updateAvatar')) {
+                            $avatarUpdated = (bool)User::updateAvatar($id, $relPath);
+                        } else {
+                            $avatarUpdated = (bool)User::updateProfile($id, ['avatar_path'=>$relPath]);
+                        }
+                        // Pour rafraîchir l'affichage éventuel
+                        if (!empty($_SESSION['user'])) {
+                            $_SESSION['user']['avatar_path'] = $relPath;
+                        }
+                    } else {
+                        $_SESSION['flash_error'] = "Échec lors de l'enregistrement de l'avatar.";
+                        header('Location: ' . BASE_URL . 'profil/edit'); exit;
+                    }
+                } else {
+                    $_SESSION['flash_error'] = "Avatar invalide (formats acceptés: JPG/PNG/WEBP/GIF, max 2 Mo).";
+                    header('Location: ' . BASE_URL . 'profil/edit'); exit;
+                }
+            }
+        }
+        /* ------------------------------------------------ */
+
+        /* ---------- Préférences (fumeur/animaux/musique/discussion/clim) ---------- */
+        $prefsUpdated = false;
+        $prefs = [
+            'smoking'  => isset($_POST['pref_smoking'])  ? (int)!!$_POST['pref_smoking']  : null,
+            'pets'     => isset($_POST['pref_pets'])     ? (int)!!$_POST['pref_pets']     : null,
+            'music'    => isset($_POST['pref_music'])    ? (int)!!$_POST['pref_music']    : null,
+            'chat'     => isset($_POST['pref_chat'])     ? (int)!!$_POST['pref_chat']     : null,
+            'ac'       => isset($_POST['pref_ac'])       ? (int)!!$_POST['pref_ac']       : null,
+        ];
+        // Nettoie les null (si le formulaire ne les a pas envoyés)
+        $toSave = [];
+        foreach ($prefs as $k=>$v) if ($v !== null) $toSave[$k] = $v;
+
+        if ($id > 0 && $toSave) {
+            // Cherche une méthode probable dans le modèle
+            foreach (['save','upsertForUser','set','updateForUser','saveForUser'] as $m) {
+                if (method_exists(UserPreferences::class, $m)) {
+                    $prefsUpdated = (bool)UserPreferences::$m($id, $toSave);
+                    break;
+                }
+            }
+        }
+        /* ------------------------------------------------------------------------- */
+
         /* ---------- Changement de mot de passe (optionnel) ---------- */
         $pwChanged = false;
         $newPw  = trim((string)($_POST['new_password']     ?? ''));
@@ -95,7 +169,6 @@ final class UserDashboardController extends BaseController
                 $_SESSION['flash_error'] = 'Les mots de passe ne correspondent pas.';
                 header('Location: ' . BASE_URL . 'profil/edit'); exit;
             }
-            // Hash côté modèle
             if (!User::updatePassword($id, $newPw)) {
                 $_SESSION['flash_error'] = 'Échec de la mise à jour du mot de passe.';
                 header('Location: ' . BASE_URL . 'profil/edit'); exit;
@@ -111,15 +184,13 @@ final class UserDashboardController extends BaseController
         $fresh = $id ? User::findById($id) : null;
         if ($fresh) { $_SESSION['user'] = array_merge($_SESSION['user'] ?? [], $fresh); }
 
-        if ($pwChanged && $profileUpdated) {
-            $_SESSION['flash_success'] = 'Profil et mot de passe mis à jour.';
-        } elseif ($pwChanged) {
-            $_SESSION['flash_success'] = 'Mot de passe mis à jour.';
-        } elseif ($profileUpdated) {
-            $_SESSION['flash_success'] = 'Profil mis à jour.';
-        } else {
-            $_SESSION['flash_success'] = 'Aucun changement.';
-        }
+        // Messages combinés
+        $parts = [];
+        if ($profileUpdated) $parts[] = 'profil';
+        if ($pwChanged)      $parts[] = 'mot de passe';
+        if ($avatarUpdated)  $parts[] = 'avatar';
+        if ($prefsUpdated)   $parts[] = 'préférences';
+        $_SESSION['flash_success'] = $parts ? (ucfirst(implode(', ', $parts)) . ' mis à jour.') : 'Aucun changement.';
 
         header('Location: ' . BASE_URL . 'profil/edit'); exit;
     }
@@ -133,14 +204,13 @@ final class UserDashboardController extends BaseController
     /* =========================
        ALIAS/ADAPTATEURS AJOUTÉS
        ========================= */
-
     public function editProfile(): void { $this->editForm(); }
     public function updateProfile(): void { $this->update(); }
     public function profile(): void { $this->editForm(); }
     public function legacyProfileRedirect(): void { $this->redirectToProfilEdit(); }
 
     /* =========================
-       VÉHICULES (on remplace les redirections par du vrai code)
+       VÉHICULES
        ========================= */
 
     /** GET /user/vehicle (ajout) ou /user/vehicle/edit?id=... (édition) */
@@ -159,7 +229,6 @@ final class UserDashboardController extends BaseController
             }
         }
 
-        // <- chemin de vue déplacé vers pages/
         $this->render('pages/vehicle_form', [
             'title'   => $id ? 'Modifier mon véhicule' : 'Ajouter un véhicule',
             'vehicle' => $vehicle
@@ -260,7 +329,7 @@ final class UserDashboardController extends BaseController
             header('Location: ' . BASE_URL . 'user/vehicle'); exit;
         }
 
-        // 2) Soumission formulaire (POST) → tente la création via le modèle Ride
+        // 2) POST → création via modèle Ride
         if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             if (!\App\Security\Security::checkCsrf($_POST['csrf'] ?? null)) {
                 $_SESSION['flash_error'] = 'Session expirée, veuillez réessayer.';
@@ -287,7 +356,6 @@ final class UserDashboardController extends BaseController
                 header('Location: ' . BASE_URL . 'user/ride/create'); exit;
             }
 
-            // On essaie plusieurs conventions possibles sans casser ton code
             $ok = false;
             if (method_exists(Ride::class, 'createForDriver')) {
                 $ok = Ride::createForDriver($uid, $vehicleId, $payload);
@@ -299,7 +367,7 @@ final class UserDashboardController extends BaseController
                 $_SESSION['flash_success'] = 'Trajet publié.';
                 header('Location: ' . BASE_URL . 'user/dashboard'); exit;
             } else {
-                $_SESSION['flash_error'] = "Impossible d’enregistrer le trajet (implémente Ride::create*).";
+                $_SESSION['flash_error'] = "Impossible d’enregistrer le trajet (implémenter Ride::create*).";
                 header('Location: ' . BASE_URL . 'user/ride/create'); exit;
             }
         }

@@ -1,7 +1,13 @@
 <?php
 function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 /** @var array|null $user */
+/** @var array|null $prefs */
 /** @var string $title */
+
+$pref = function($k, $default = 0) use ($prefs) {
+  $v = $prefs[$k] ?? $default;
+  return (string)$v === '1' ? '1' : '0';
+};
 ?>
 <div class="container my-4">
   <h1 class="h3 mb-3"><?= e($title ?? 'Modifier mon profil') ?></h1>
@@ -13,8 +19,22 @@ function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
     <div class="alert alert-success"><?= e($_SESSION['flash_success']); unset($_SESSION['flash_success']); ?></div>
   <?php endif; ?>
 
-  <form method="post" action="<?= BASE_URL ?>profile/edit" class="row g-3">
+  <form method="post" action="<?= BASE_URL ?>profile/edit" class="row g-3" enctype="multipart/form-data">
     <?= \App\Security\Security::csrfField(); ?>
+
+    <!-- Avatar -->
+    <div class="col-12">
+      <label class="form-label">Photo de profil (avatar)</label>
+      <div class="d-flex align-items-center gap-3">
+        <?php
+          $avatar = $user['avatar_path'] ?? ($_SESSION['user']['avatar_path'] ?? null);
+          $avatarUrl = $avatar ? (BASE_URL . $avatar) : (BASE_URL . 'assets/img/avatar-placeholder.png');
+        ?>
+        <img src="<?= e($avatarUrl) ?>" alt="Avatar" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:1px solid #ddd;">
+        <input type="file" name="avatar" class="form-control" accept="image/*">
+      </div>
+      <small class="text-muted">Formats acceptés: JPG/PNG/WEBP/GIF — 2 Mo max.</small>
+    </div>
 
     <div class="col-md-6">
       <label class="form-label">Nom</label>
@@ -49,6 +69,49 @@ function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
     <div class="col-12">
       <label class="form-label">Bio</label>
       <textarea name="bio" class="form-control" rows="3"><?= e($user['bio'] ?? '') ?></textarea>
+    </div>
+
+    <!-- Préférences de trajet -->
+    <div class="col-12">
+      <hr>
+      <h6 class="mb-2">Mes préférences pendant le trajet</h6>
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label">Fumeur</label>
+          <select name="pref_smoking" class="form-select">
+            <option value="0" <?= $pref('smoking')==='0'?'selected':''; ?>>Non</option>
+            <option value="1" <?= $pref('smoking')==='1'?'selected':''; ?>>Oui</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Animaux acceptés</label>
+          <select name="pref_pets" class="form-select">
+            <option value="0" <?= $pref('pets')==='0'?'selected':''; ?>>Non</option>
+            <option value="1" <?= $pref('pets')==='1'?'selected':''; ?>>Oui</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Musique</label>
+          <select name="pref_music" class="form-select">
+            <option value="0" <?= $pref('music')==='0'?'selected':''; ?>>Plutôt non</option>
+            <option value="1" <?= $pref('music')==='1'?'selected':''; ?>>Avec plaisir</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Discussion</label>
+          <select name="pref_chat" class="form-select">
+            <option value="0" <?= $pref('chat')==='0'?'selected':''; ?>>Discret</option>
+            <option value="1" <?= $pref('chat')==='1'?'selected':''; ?>>Bavard</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Climatisation</label>
+          <select name="pref_ac" class="form-select">
+            <option value="0" <?= $pref('ac')==='0'?'selected':''; ?>>Peu/éteinte</option>
+            <option value="1" <?= $pref('ac')==='1'?'selected':''; ?>>Oui</option>
+          </select>
+        </div>
+      </div>
     </div>
 
     <hr class="mt-4">
