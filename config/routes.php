@@ -44,14 +44,6 @@ $router->get('/logout',                    [AuthController::class, 'logout']); /
 /* =======================
    Dashboard – Passerelle
    ======================= */
-/**
- * /dashboard NE REND AUCUNE VUE.
- * Il détecte le rôle dans la session et redirige vers :
- * - /user/dashboard
- * - /employee/dashboard
- * - /admin/dashboard
- * => évite toute boucle de redirection.
- */
 $router->get('/dashboard',                 [DashboardGatewayController::class, 'route']);
 
 /* =======================
@@ -62,17 +54,24 @@ $router->get('/user/dashboard',            [UserDashboardController::class, 'ind
 /* Profil + véhicules (USER) */
 $router->get('/user/profile',              [UserDashboardController::class, 'profile']);
 $router->post('/user/profile/update',      [UserDashboardController::class, 'updateProfile']);
-$router->post('/user/vehicle/add',         [UserDashboardController::class, 'addVehicle']);
-$router->post('/user/vehicle/edit',        [UserDashboardController::class, 'editVehicle']);
-$router->post('/user/vehicle/delete',      [UserDashboardController::class, 'deleteVehicle']);
 
 /* ===== Profil EDIT – URL canonique ===== */
 $router->get('/profil/edit',               [UserDashboardController::class, 'editForm']);
 $router->post('/profil/edit',              [UserDashboardController::class, 'update']);
 $router->post('/profile/edit',             [UserDashboardController::class, 'update']);
-
-/* Alias temporaire (vieux liens) → 301 vers /profil/edit */
 $router->get('/profile/edit',              [UserDashboardController::class, 'redirectToProfilEdit']);
+
+/* --------- Véhicules (ajout/édition/suppression) --------- */
+/* GET form create/edit (NOUVEAU) */
+$router->get('/user/vehicle',              [UserDashboardController::class, 'vehicleForm']);
+$router->get('/user/vehicle/edit',         [UserDashboardController::class, 'vehicleForm']);
+/* POST actions (conservées) */
+$router->post('/user/vehicle/add',         [UserDashboardController::class, 'addVehicle']);
+$router->post('/user/vehicle/edit',        [UserDashboardController::class, 'editVehicle']);
+$router->post('/user/vehicle/delete',      [UserDashboardController::class, 'deleteVehicle']);
+/* Alias rétro-compat GET (si anciens liens) */
+$router->get('/vehicle',                   [UserDashboardController::class, 'vehicleForm']);
+$router->get('/vehicle/edit',              [UserDashboardController::class, 'vehicleForm']);
 
 /* Saisir un trajet (chauffeur) */
 $router->get('/user/ride/create',          [UserDashboardController::class, 'createRide']);
@@ -99,7 +98,7 @@ $router->post('/ride/end',                 [UserDashboardController::class, 'end
    Espace EMPLOYÉ (EMPLOYEE)
    ======================= */
 $router->get('/employee/dashboard',        [EmployeeController::class, 'index']);
-$router->post('/employee/reviews',         [EmployeeController::class, 'moderate']); // valider/refuser avis
+$router->post('/employee/reviews',         [EmployeeController::class, 'moderate']);
 
 /* --- Alias rétro-compat --- */
 $router->get('/employee',                  [EmployeeController::class, 'index']);
@@ -108,9 +107,9 @@ $router->get('/employee',                  [EmployeeController::class, 'index'])
    Espace ADMIN (ADMIN)
    ======================= */
 $router->get('/admin/dashboard',           [AdminController::class, 'index']);
-$router->post('/admin/suspend',            [AdminController::class, 'suspendAccount']);   // suspendre user/employé
-$router->post('/admin/employee/suspend',   [AdminController::class, 'suspendEmployee']);  // suspendre un employé
-$router->post('/admin/users/suspend',      [AdminController::class, 'suspendUser']);      // suspendre un utilisateur
+$router->post('/admin/suspend',            [AdminController::class, 'suspendAccount']);
+$router->post('/admin/employee/suspend',   [AdminController::class, 'suspendEmployee']);
+$router->post('/admin/users/suspend',      [AdminController::class, 'suspendUser']);
 $router->post('/admin/employees/create',   [AdminController::class, 'createEmployee']);
 
 /* --- Alias rétro-compat --- */
