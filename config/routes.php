@@ -69,6 +69,8 @@ $router->post('/user/vehicle/delete',      [UserDashboardController::class, 'del
 /* ===== Profil EDIT – URL canonique ===== */
 $router->get('/profil/edit',               [UserDashboardController::class, 'editForm']);
 $router->post('/profil/edit',              [UserDashboardController::class, 'update']);
+$router->post('/profile/edit',             [UserDashboardController::class, 'update']);
+
 /* Alias temporaire (vieux liens) → 301 vers /profil/edit */
 $router->get('/profile/edit',              [UserDashboardController::class, 'redirectToProfilEdit']);
 
