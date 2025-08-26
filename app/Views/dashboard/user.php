@@ -97,11 +97,7 @@ if (!function_exists('e')) {
             </div>
 
             <div class="mt-3">
-<<<<<<< HEAD
               <a href="<?= BASE_URL ?>profil/edit" class="btn btn-success w-100 py-2 fw-semibold rounded-3 d-flex align-items-center justify-content-center">
-=======
-              <a href="<?= BASE_URL ?>profile/edit" class="btn btn-success w-100 py-2 fw-semibold rounded-3 d-flex align-items-center justify-content-center">
->>>>>>> 8726780735c169fc759f78f8c944072dc2e25155
                 <i class="fas fa-edit me-2"></i>Modifier
               </a>
             </div>
