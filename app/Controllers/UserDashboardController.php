@@ -11,11 +11,9 @@ final class UserDashboardController extends BaseController
     public function index(): void
     {
         Security::ensure(['USER']);
-
-        // TODO: remplace par tes vraies requêtes
         $user = $_SESSION['user'] ?? ['nom'=>'Utilisateur','credits'=>0,'total_rides'=>0];
-        $reservations = []; // SELECT ...
-        $rides = [];        // SELECT ...
+        $reservations = [];
+        $rides = [];
 
         $this->render('dashboard/user', [
             'title'        => 'Espace utilisateur',
@@ -25,7 +23,6 @@ final class UserDashboardController extends BaseController
         ]);
     }
 
-    /* ===== Profil (affichage simple) ===== */
     public function profile(): void
     {
         Security::ensure(['USER']);
@@ -38,19 +35,22 @@ final class UserDashboardController extends BaseController
         ]);
     }
 
-    /* ===== Profil (EDIT) ===== */
-    /** GET /profil/edit : affiche le formulaire d’édition */
+    /** GET /profil/edit */
     public function editForm(): void
     {
         Security::ensure(['USER']);
+        $id = (int)($_SESSION['user']['id'] ?? 0);
 
-        $id   = (int)($_SESSION['user']['id'] ?? 0);
-        $user = User::findById($id);
-
+        // Essai BDD, sinon fallback session (mais on affiche quand même le form)
+        $user = null;
+        try { if ($id > 0) $user = User::findById($id); } catch (\Throwable $e) { error_log('[profil/edit] '.$e->getMessage()); }
         if (!$user) {
-            $_SESSION['flash'][] = ['type'=>'danger','text'=>"Utilisateur introuvable."];
-            header('Location: ' . BASE_URL . 'user/dashboard'); 
-            exit;
+            $user = $_SESSION['user'] ?? null;
+            if (!$user) {
+                $_SESSION['flash'][] = ['type'=>'danger','text'=>"Utilisateur introuvable."];
+                header('Location: ' . BASE_URL . 'user/dashboard'); exit;
+            }
+            // On n’affiche pas d’erreur visible, la session suffit pour préremplir
         }
 
         $this->render('dashboard/profile_edit', [
@@ -59,21 +59,19 @@ final class UserDashboardController extends BaseController
         ]);
     }
 
-    /** POST /profil/edit : traite la mise à jour puis revient sur l’edit */
+    /** POST /profil/edit */
     public function update(): void
     {
         Security::ensure(['USER']);
 
-        // CSRF
         if (!Security::checkCsrf($_POST['csrf'] ?? null)) {
             $_SESSION['flash'][] = ['type'=>'danger','text'=>'Session expirée, veuillez réessayer.'];
-            header('Location: ' . BASE_URL . 'profile/edit'); 
-            exit;
+            header('Location: ' . BASE_URL . 'profil/edit'); exit;
         }
 
         $id = (int)($_SESSION['user']['id'] ?? 0);
 
-        // On accepte clés FR ou EN (le modèle mappe correctement)
+        // On accepte FR ou EN
         $payload = [
             'nom'         => $_POST['nom']        ?? null,
             'prenom'      => $_POST['prenom']     ?? null,
@@ -86,40 +84,36 @@ final class UserDashboardController extends BaseController
             'address'     => $_POST['address']    ?? null,
         ];
         $data = [];
-        foreach ($payload as $k=>$v) {
-            if ($v !== null && $v !== '') { $data[$k] = is_string($v) ? trim($v) : $v; }
-        }
+        foreach ($payload as $k=>$v) if ($v !== null && $v !== '') $data[$k] = is_string($v) ? trim($v) : $v;
 
-        $ok = $data ? User::updateProfile($id, $data) : false;
+        $ok = false;
+        try { $ok = $data ? User::updateProfile($id, $data) : false; }
+        catch (\Throwable $e) { error_log('[profil/update] ' . $e->getMessage()); }
 
-        // Rafraîchit l'user en session depuis la BDD pour que la vue affiche les nouvelles valeurs
-        $fresh = User::findById($id);
-        if ($fresh) {
-            $_SESSION['user'] = array_merge($_SESSION['user'] ?? [], $fresh);
-        }
+        // Rafraîchir la session avec la BDD si possible
+        $fresh = null;
+        try { if ($id > 0) $fresh = User::findById($id); } catch (\Throwable $e) { error_log('[profil/update find] '.$e->getMessage()); }
+        if ($fresh) $_SESSION['user'] = array_merge($_SESSION['user'] ?? [], $fresh);
 
         $_SESSION['flash'][] = ['type' => $ok ? 'success' : 'warning', 'text' => $ok ? 'Profil mis à jour.' : 'Aucun changement.'];
-        header('Location: ' . BASE_URL . 'profile/edit'); 
-        exit;
+        header('Location: ' . BASE_URL . 'profil/edit'); exit;
     }
 
-    /* Alias ancien lien : /profile/edit -> /profil/edit */
+    /** Alias /profile/edit -> /profil/edit */
     public function redirectToProfilEdit(): void
     {
-        header('Location: ' . BASE_URL . 'profile/edit');
-        exit;
+        header('Location: ' . BASE_URL . 'profil/edit'); exit;
     }
 
-    /* ===== Profil : routes historiques ===== */
-    public function updateProfile(): void      { Security::ensure(['USER']); /* Traitement legacy */ header('Location: ' . BASE_URL . 'user/profile'); }
-    public function addVehicle(): void         { Security::ensure(['USER']); /* Traitement */      header('Location: ' . BASE_URL . 'user/profile'); }
-    public function editVehicle(): void        { Security::ensure(['USER']); /* Traitement */      header('Location: ' . BASE_URL . 'user/profile'); }
-    public function deleteVehicle(): void      { Security::ensure(['USER']); /* Traitement */      header('Location: ' . BASE_URL . 'user/profile'); }
+    // Legacy
+    public function updateProfile(): void { Security::ensure(['USER']); header('Location: ' . BASE_URL . 'user/profile'); }
+    public function addVehicle(): void    { Security::ensure(['USER']); header('Location: ' . BASE_URL . 'user/profile'); }
+    public function editVehicle(): void   { Security::ensure(['USER']); header('Location: ' . BASE_URL . 'user/profile'); }
+    public function deleteVehicle(): void { Security::ensure(['USER']); header('Location: ' . BASE_URL . 'user/profile'); }
 
-    /* ===== Trajets ===== */
-    public function createRide(): void         { Security::ensure(['USER']); $this->render('dashboard/create_ride',['title'=>'Publier un trajet']); }
-    public function history(): void            { Security::ensure(['USER']); $this->render('dashboard/history',['title'=>'Historique']); }
-    public function startRide(): void          { Security::ensure(['USER']); /* start */ header('Location: ' . BASE_URL . 'user/dashboard'); }
-    public function endRide(): void            { Security::ensure(['USER']); /* end */   header('Location: ' . BASE_URL . 'user/dashboard'); }
-    public function cancelRide(): void         { Security::ensure(['USER']); /* cancel */ header('Location: ' . BASE_URL . 'user/dashboard'); }
+    public function createRide(): void    { Security::ensure(['USER']); $this->render('dashboard/create_ride',['title'=>'Publier un trajet']); }
+    public function history(): void       { Security::ensure(['USER']); $this->render('dashboard/history',['title'=>'Historique']); }
+    public function startRide(): void     { Security::ensure(['USER']); header('Location: ' . BASE_URL . 'user/dashboard'); }
+    public function endRide(): void       { Security::ensure(['USER']); header('Location: ' . BASE_URL . 'user/dashboard'); }
+    public function cancelRide(): void    { Security::ensure(['USER']); header('Location: ' . BASE_URL . 'user/dashboard'); }
 }

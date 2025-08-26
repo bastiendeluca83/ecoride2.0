@@ -12,7 +12,7 @@ class ProfileController
         Security::ensure(['USER','EMPLOYEE','ADMIN']);
 
         $userId = (int)($_SESSION['user']['id'] ?? 0);
-        $user   = UserModel::findById($userId);
+        $user   = UrseModel::findById($userId);
 
         // Vue: app/Views/dashboard/profile_edit.php
         ob_start();
