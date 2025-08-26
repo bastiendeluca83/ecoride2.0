@@ -41,7 +41,7 @@ final class UserDashboardController extends BaseController
         Security::ensure(['USER']);
         $id = (int)($_SESSION['user']['id'] ?? 0);
 
-        // Essai BDD, sinon fallback session (mais on affiche quand même le form)
+        // Essai BDD, sinon fallback session (on affiche quand même le form)
         $user = null;
         try { if ($id > 0) $user = User::findById($id); } catch (\Throwable $e) { error_log('[profil/edit] '.$e->getMessage()); }
         if (!$user) {
@@ -50,7 +50,6 @@ final class UserDashboardController extends BaseController
                 $_SESSION['flash'][] = ['type'=>'danger','text'=>"Utilisateur introuvable."];
                 header('Location: ' . BASE_URL . 'user/dashboard'); exit;
             }
-            // On n’affiche pas d’erreur visible, la session suffit pour préremplir
         }
 
         $this->render('dashboard/profile_edit', [
@@ -71,7 +70,7 @@ final class UserDashboardController extends BaseController
 
         $id = (int)($_SESSION['user']['id'] ?? 0);
 
-        // On accepte FR ou EN
+        // Accepte FR ou EN
         $payload = [
             'nom'         => $_POST['nom']        ?? null,
             'prenom'      => $_POST['prenom']     ?? null,
@@ -99,10 +98,10 @@ final class UserDashboardController extends BaseController
         header('Location: ' . BASE_URL . 'profil/edit'); exit;
     }
 
-    /** Alias /profile/edit -> /profil/edit */
+    /** Alias /profile/edit -> /profil/edit (301) */
     public function redirectToProfilEdit(): void
     {
-        header('Location: ' . BASE_URL . 'profil/edit'); exit;
+        header('Location: ' . BASE_URL . 'profil/edit', true, 301); exit;
     }
 
     // Legacy

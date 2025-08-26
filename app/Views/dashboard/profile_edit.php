@@ -13,7 +13,7 @@ function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
     <div class="alert alert-success"><?= e($_SESSION['flash_success']); unset($_SESSION['flash_success']); ?></div>
   <?php endif; ?>
 
-  <form method="post" action="<?= BASE_URL ?>profile/edit" class="row g-3">
+  <form method="post" action="<?= BASE_URL ?>profil/edit" class="row g-3">
     <?= \App\Security\Security::csrfField(); ?>
 
     <div class="col-md-6">

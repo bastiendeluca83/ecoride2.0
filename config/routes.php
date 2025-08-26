@@ -66,11 +66,10 @@ $router->post('/user/vehicle/add',         [UserDashboardController::class, 'add
 $router->post('/user/vehicle/edit',        [UserDashboardController::class, 'editVehicle']);
 $router->post('/user/vehicle/delete',      [UserDashboardController::class, 'deleteVehicle']);
 
-/* Profil EDIT (nouveau) */
-$router->get('/profile/edit',               [UserDashboardController::class, 'editForm']);
-$router->post('/profile/edit',              [UserDashboardController::class, 'update']);
-
-/* Alias ancien lien : /profile/edit -> redirige vers /profil/edit */
+/* ===== Profil EDIT – URL canonique ===== */
+$router->get('/profil/edit',               [UserDashboardController::class, 'editForm']);
+$router->post('/profil/edit',              [UserDashboardController::class, 'update']);
+/* Alias temporaire (vieux liens) → 301 vers /profil/edit */
 $router->get('/profile/edit',              [UserDashboardController::class, 'redirectToProfilEdit']);
 
 /* Saisir un trajet (chauffeur) */
