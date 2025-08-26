@@ -59,7 +59,7 @@ final class UserDashboardController extends BaseController
 
         $id = (int)($_SESSION['user']['id'] ?? 0);
 
-        // Accepte FR ou EN
+        // Accepte FR ou EN (profil)
         $payload = [
             'nom'         => $_POST['nom']        ?? null,
             'prenom'      => $_POST['prenom']     ?? null,
@@ -73,15 +73,50 @@ final class UserDashboardController extends BaseController
             'address'     => $_POST['address']    ?? null,
         ];
         $data = [];
-        foreach ($payload as $k=>$v) if ($v !== null && $v !== '') $data[$k] = is_string($v) ? trim($v) : $v;
+        foreach ($payload as $k=>$v) {
+            if ($v !== null && $v !== '') { $data[$k] = is_string($v) ? trim($v) : $v; }
+        }
 
-        $ok = $id>0 && $data ? User::updateProfile($id, $data) : false;
+        /* ---------- Changement de mot de passe (optionnel) ---------- */
+        $pwChanged = false;
+        $newPw  = trim((string)($_POST['new_password']     ?? ''));
+        $confPw = trim((string)($_POST['confirm_password'] ?? ''));
 
-        // RAF session
+        if ($newPw !== '') {
+            if (mb_strlen($newPw) < 8) {
+                $_SESSION['flash_error'] = 'Le mot de passe doit contenir au moins 8 caractères.';
+                header('Location: ' . BASE_URL . 'profil/edit'); exit;
+            }
+            if ($newPw !== $confPw) {
+                $_SESSION['flash_error'] = 'Les mots de passe ne correspondent pas.';
+                header('Location: ' . BASE_URL . 'profil/edit'); exit;
+            }
+            // Hash côté modèle
+            if (!User::updatePassword($id, $newPw)) {
+                $_SESSION['flash_error'] = 'Échec de la mise à jour du mot de passe.';
+                header('Location: ' . BASE_URL . 'profil/edit'); exit;
+            }
+            $pwChanged = true;
+        }
+        /* ----------------------------------------------------------- */
+
+        // Mise à jour du profil (si champs fournis)
+        $profileUpdated = $id>0 && $data ? User::updateProfile($id, $data) : false;
+
+        // RAF session (ex: email/pseudo)
         $fresh = $id ? User::findById($id) : null;
-        if ($fresh) $_SESSION['user'] = array_merge($_SESSION['user'] ?? [], $fresh);
+        if ($fresh) { $_SESSION['user'] = array_merge($_SESSION['user'] ?? [], $fresh); }
 
-        $_SESSION['flash_success'] = $ok ? 'Profil mis à jour.' : 'Aucun changement.';
+        if ($pwChanged && $profileUpdated) {
+            $_SESSION['flash_success'] = 'Profil et mot de passe mis à jour.';
+        } elseif ($pwChanged) {
+            $_SESSION['flash_success'] = 'Mot de passe mis à jour.';
+        } elseif ($profileUpdated) {
+            $_SESSION['flash_success'] = 'Profil mis à jour.';
+        } else {
+            $_SESSION['flash_success'] = 'Aucun changement.';
+        }
+
         header('Location: ' . BASE_URL . 'profil/edit'); exit;
     }
 
@@ -102,7 +137,7 @@ final class UserDashboardController extends BaseController
     /** Certains appellent "updateProfile" (POST) → on délègue à update() */
     public function updateProfile(): void { $this->update(); }
 
-    /** Si un lien appelle "profile" (erreur vue dans ton screenshot) → montre le formulaire */
+    /** Si un lien appelle "profile" → montre le formulaire */
     public function profile(): void { $this->editForm(); }
 
     /** Tes routes utilisaient parfois legacyProfileRedirect() */
