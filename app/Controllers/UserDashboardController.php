@@ -245,8 +245,73 @@ final class UserDashboardController extends BaseController
         header('Location: ' . BASE_URL . 'user/dashboard'); exit;
     }
 
+    /* =========================
+       Trajet : redirection conditionnelle + création
+       ========================= */
+    public function createRide(): void
+    {
+        Security::ensure(['USER']);
+        $uid = (int)($_SESSION['user']['id'] ?? 0);
+
+        // 1) Doit avoir au moins un véhicule, sinon → page ajout véhicule
+        $vehicles = $uid ? Vehicle::forUser($uid) : [];
+        if (empty($vehicles)) {
+            $_SESSION['flash_error'] = "Ajoutez d'abord un véhicule pour publier un trajet.";
+            header('Location: ' . BASE_URL . 'user/vehicle'); exit;
+        }
+
+        // 2) Soumission formulaire (POST) → tente la création via le modèle Ride
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+            if (!\App\Security\Security::checkCsrf($_POST['csrf'] ?? null)) {
+                $_SESSION['flash_error'] = 'Session expirée, veuillez réessayer.';
+                header('Location: ' . BASE_URL . 'user/ride/create'); exit;
+            }
+
+            $vehicleId = (int)($_POST['vehicle_id'] ?? 0);
+            if ($vehicleId <= 0 || !Vehicle::findOwned($vehicleId, $uid)) {
+                $_SESSION['flash_error'] = "Véhicule invalide.";
+                header('Location: ' . BASE_URL . 'user/ride/create'); exit;
+            }
+
+            $payload = [
+                'from_city'  => trim((string)($_POST['from_city']  ?? '')),
+                'to_city'    => trim((string)($_POST['to_city']    ?? '')),
+                'date_start' => trim((string)($_POST['date_start'] ?? '')),
+                'seats'      => (int)($_POST['seats'] ?? 0),
+                'price'      => (int)($_POST['price'] ?? 0),
+                'notes'      => trim((string)($_POST['notes'] ?? '')),
+            ];
+
+            if ($payload['from_city']==='' || $payload['to_city']==='' || $payload['date_start']==='' || $payload['seats']<=0) {
+                $_SESSION['flash_error'] = 'Ville départ, arrivée, date et places sont obligatoires.';
+                header('Location: ' . BASE_URL . 'user/ride/create'); exit;
+            }
+
+            // On essaie plusieurs conventions possibles sans casser ton code
+            $ok = false;
+            if (method_exists(Ride::class, 'createForDriver')) {
+                $ok = Ride::createForDriver($uid, $vehicleId, $payload);
+            } elseif (method_exists(Ride::class, 'create')) {
+                $ok = Ride::create($uid, $vehicleId, $payload);
+            }
+
+            if ($ok) {
+                $_SESSION['flash_success'] = 'Trajet publié.';
+                header('Location: ' . BASE_URL . 'user/dashboard'); exit;
+            } else {
+                $_SESSION['flash_error'] = "Impossible d’enregistrer le trajet (implémente Ride::create*).";
+                header('Location: ' . BASE_URL . 'user/ride/create'); exit;
+            }
+        }
+
+        // 3) GET → affiche la page de création
+        $this->render('pages/create_ride', [
+            'title'    => 'Publier un trajet',
+            'vehicles' => $vehicles
+        ]);
+    }
+
     /* Legacy alias — conservés mais non utilisés dans le flux actuel */
-    public function createRide(): void    { Security::ensure(['USER']); $this->render('dashboard/create_ride',['title'=>'Publier un trajet']); }
     public function history(): void       { Security::ensure(['USER']); $this->render('dashboard/history',['title'=>'Historique']); }
     public function startRide(): void     { Security::ensure(['USER']); header('Location: ' . BASE_URL . 'user/dashboard'); }
     public function endRide(): void       { Security::ensure(['USER']); header('Location: ' . BASE_URL . 'user/dashboard'); }
