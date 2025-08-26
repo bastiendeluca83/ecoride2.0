@@ -1,59 +1,95 @@
 <?php
+declare(strict_types=1);
+
 namespace App\Controllers;
 
 use App\Security\Security;
-use App\Db\Sql;
-use PDO;
+use App\Models\Stats;
+use App\Models\User;
 
-class AdminController extends BaseController
+final class AdminController extends BaseController
 {
-    private function pdo(): PDO { return Sql::pdo(); }
-
-    public function index(): void {
+    /** GET /admin ou /admin/dashboard */
+    public function index(): void
+    {
         Security::ensure(['ADMIN']);
-        $this->render('dashboard/admin', ['title' => 'Espace Administrateur']);
+
+        // Fenêtre glissante 14 jours pour les tableaux
+        $to   = (new \DateTimeImmutable('tomorrow'))->format('Y-m-d');
+        $from = (new \DateTimeImmutable('-13 days'))->format('Y-m-d');
+
+        $kpis          = Stats::kpis();
+        $ridesPerDay   = Stats::ridesPerDay($from, $to);
+        $creditsPerDay = Stats::platformCreditsPerDay($from, $to);
+        $users         = User::listAll();
+
+        // CSRF pour les formulaires (suspension / création)
+        if (session_status() === \PHP_SESSION_NONE) { session_start(); }
+        if (empty($_SESSION['csrf'])) { $_SESSION['csrf'] = bin2hex(random_bytes(32)); }
+        $csrf = $_SESSION['csrf'];
+
+        $this->render('dashboard/admin', [
+            'title'         => 'Espace Administrateur',
+            'kpis'          => $kpis,
+            'ridesPerDay'   => $ridesPerDay,
+            'creditsPerDay' => $creditsPerDay,
+            'users'         => $users,
+            'csrf'          => $csrf,
+        ]);
     }
 
-    // Alias pour compatibilité
-    public function addEmployee(): void    { $this->createEmployee(); }
-    public function suspendEmployee(): void{ $this->suspendUser(); }
-    public function suspendAccount(): void { $this->suspendUser(); }
+    /* ------- Alias compat (routes anciennes) ------- */
+    public function addEmployee(): void     { $this->createEmployee(); }
+    public function suspendEmployee(): void { $this->suspend(); }
+    public function suspendAccount(): void  { $this->suspend(); }
 
     /** POST /admin/employees/create */
-    public function createEmployee(): void {
+    public function createEmployee(): void
+    {
         Security::ensure(['ADMIN']);
         if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') { http_response_code(405); return; }
 
-        $pdo   = $this->pdo();
-        $nom   = trim($_POST['nom'] ?? '');
-        $email = trim($_POST['email'] ?? '');
-        $pass  = (string)($_POST['password'] ?? '');
-        if ($nom===''||$email===''||strlen($pass)<8){ header('Location:/admin'); return; }
-
-        $hash = password_hash($pass, PASSWORD_BCRYPT);
-        try {
-            $pdo->prepare("INSERT INTO users (nom,email,password_hash,role,credits,is_suspended)
-                           VALUES (:n,:e,:h,'EMPLOYEE',0,0)")
-                ->execute(['n'=>$nom,'e'=>$email,'h'=>$hash]);
-        } catch (\PDOException $e) {
-            header('Location:/admin?error=duplicate'); return;
+        if (session_status() === \PHP_SESSION_NONE) { session_start(); }
+        if (!isset($_POST['csrf'], $_SESSION['csrf']) || !hash_equals($_SESSION['csrf'], (string)$_POST['csrf'])) {
+            header('Location: /admin?error=csrf'); return;
         }
-        header('Location:/admin?created=1');
+
+        $email = trim((string)($_POST['email'] ?? ''));
+        $pass  = (string)($_POST['password'] ?? '');
+        $nom   = trim((string)($_POST['nom'] ?? ''));
+        if ($email === '' || strlen($pass) < 8) { header('Location: /admin?error=invalid'); return; }
+
+        // Création via modèle User (rôle EMPLOYEE, crédits 0)
+        try {
+            User::createEmployee($email, $pass, $nom ?: null, null);
+            header('Location: /admin?created=1');
+        } catch (\Throwable $e) {
+            header('Location: /admin?error=duplicate'); // email unique, etc.
+        }
     }
 
     /** POST /admin/users/suspend */
-    public function suspendUser(): void {
+    public function suspend(): void  { $this->setSuspended(true); }
+
+    /** POST /admin/users/unsuspend */
+    public function unsuspend(): void { $this->setSuspended(false); }
+
+    /* --------- Implémentation commune --------- */
+    private function setSuspended(bool $suspend): void
+    {
         Security::ensure(['ADMIN']);
         if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') { http_response_code(405); return; }
 
+        if (session_status() === \PHP_SESSION_NONE) { session_start(); }
+        if (!isset($_POST['csrf'], $_SESSION['csrf']) || !hash_equals($_SESSION['csrf'], (string)$_POST['csrf'])) {
+            header('Location: /admin?error=csrf'); return;
+        }
+
         $targetId = (int)($_POST['id'] ?? 0);
-        $suspend  = (int)($_POST['suspend'] ?? 1);
         $selfId   = (int)($_SESSION['user']['id'] ?? 0);
+        if ($targetId <= 0 || $targetId === $selfId) { header('Location: /admin?error=badtarget'); return; }
 
-        if ($targetId<=0 || $targetId===$selfId){ header('Location:/admin?error=badtarget'); return; }
-
-        $this->pdo()->prepare("UPDATE users SET is_suspended = :s WHERE id = :id")
-            ->execute(['s'=>$suspend,'id'=>$targetId]);
-        header('Location:/admin?suspended=1');
+        User::setSuspended($targetId, $suspend);
+        header('Location: /admin?suspended=1');
     }
 }

@@ -13,7 +13,7 @@ function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
     <div class="alert alert-success"><?= e($_SESSION['flash_success']); unset($_SESSION['flash_success']); ?></div>
   <?php endif; ?>
 
-  <form method="post" action="<?= BASE_URL ?>profil/edit" class="row g-3">
+  <form method="post" action="<?= BASE_URL ?>profile/edit" class="row g-3">
     <?= \App\Security\Security::csrfField(); ?>
 
     <div class="col-md-6">
@@ -46,6 +46,11 @@ function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
              value="<?= e($user['address'] ?? $user['adresse'] ?? '') ?>">
     </div>
 
+    <div class="col-12">
+      <label class="form-label">Bio</label>
+      <textarea name="bio" class="form-control" rows="3"><?= e($user['bio'] ?? '') ?></textarea>
+    </div>
+
     <hr class="mt-4">
 
     <div class="col-md-6">
@@ -59,7 +64,7 @@ function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
     <div class="col-12 d-flex gap-2 mt-3">
       <button class="btn btn-success" type="submit">Enregistrer</button>
-      <a href="<?= BASE_URL ?>user/profile" class="btn btn-outline-secondary">Annuler</a>
+      <a href="<?= BASE_URL ?>user/dashboard" class="btn btn-outline-secondary">Annuler</a>
     </div>
   </form>
 </div>

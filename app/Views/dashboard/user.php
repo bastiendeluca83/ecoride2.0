@@ -10,7 +10,7 @@ if (!function_exists('e')) {
   <div class="container">
     <div class="d-flex align-items-center justify-content-between mb-5">
       <div>
-        <h1 class="h2 mb-1 fw-bold text-dark">Bienvenue, <?= e($user['nom'] ?? 'Utilisateur') ?></h1>
+        <h1 class="h2 mb-1 fw-bold text-dark">Bienvenue, <?= e($user['prenom'] ?? '') ?> <?= e($user['nom'] ?? 'Utilisateur') ?></h1>
         <p class="text-muted mb-0">Gérez vos trajets et votre profil EcoRide</p>
       </div>
       <a class="btn btn-outline-danger px-4 py-2 rounded-pill" href="<?= BASE_URL ?>logout">

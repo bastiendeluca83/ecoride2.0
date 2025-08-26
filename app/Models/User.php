@@ -42,7 +42,7 @@ class User
     public static function create(string $pseudo, string $email, string $plainPassword, string $role = 'USER', int $credits = 20): int
     {
         $hash = password_hash($plainPassword, PASSWORD_BCRYPT);
-        $sql  = "INSERT INTO users(pseudo,email,password_hash,role,credits,created_at)
+        $sql  = "INSERT INTO users(nom,email,password_hash,role,credits,created_at)
                  VALUES(:p,:e,:h,:r,:c,NOW())";
         $pdo = self::pdo();
         $pdo->prepare($sql)->execute([':p'=>$pseudo, ':e'=>$email, ':h'=>$hash, ':r'=>$role, ':c'=>$credits]);
@@ -112,7 +112,7 @@ class User
                            role
                     FROM users WHERE id = :id';
         } else {
-            $sql = 'SELECT id, nom, prenom, email, telephone, adresse, credits, role
+            $sql = 'SELECT id, nom, prenom, email, telephone, adresse, credits, role, bio
                     FROM users WHERE id = :id';
         }
         try { return self::one($sql, [':id'=>$id]); }
@@ -120,15 +120,16 @@ class User
     }
 
     /**
-     * $data accepte FR (nom, prenom, telephone, adresse, email) et/ou EN (last_name, first_name, phone, address, email)
+     * $data accepte FR (nom, prenom, telephone, adresse, email, bio)
+     * et/ou EN (last_name, first_name, phone, address, email)
      */
     public static function updateProfile(int $id, array $data): bool
     {
         $useEN = self::useEnglish();
         $map = $useEN
-            ? ['nom'=>'last_name','prenom'=>'first_name','telephone'=>'phone','adresse'=>'address','email'=>'email',
+            ? ['nom'=>'last_name','prenom'=>'first_name','telephone'=>'phone','adresse'=>'address','email'=>'email','bio'=>'bio',
                'last_name'=>'last_name','first_name'=>'first_name','phone'=>'phone','address'=>'address']
-            : ['nom'=>'nom','prenom'=>'prenom','telephone'=>'telephone','adresse'=>'adresse','email'=>'email',
+            : ['nom'=>'nom','prenom'=>'prenom','telephone'=>'telephone','adresse'=>'adresse','email'=>'email','bio'=>'bio',
                'last_name'=>'nom','first_name'=>'prenom','phone'=>'telephone','address'=>'adresse'];
 
         $set = []; $p = [':id'=>$id];
@@ -141,7 +142,7 @@ class User
         }
         if (!$set) return false;
 
-        $sql = 'UPDATE users SET '.implode(', ',$set).' WHERE id = :id';
+        $sql = 'UPDATE users SET '.implode(', ',$set).', updated_at = CURRENT_TIMESTAMP WHERE id = :id';
         try { return self::pdo()->prepare($sql)->execute($p); }
         catch (\Throwable $e) { error_log('[User::updateProfile] '.$e->getMessage()); return false; }
     }
