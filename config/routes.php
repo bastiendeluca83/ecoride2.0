@@ -54,6 +54,9 @@ $router->get('/user/dashboard',            [UserDashboardController::class, 'ind
 /* Profil + véhicules (USER) */
 $router->get('/user/profile',              [UserDashboardController::class, 'profile']);
 $router->post('/user/profile/update',      [UserDashboardController::class, 'updateProfile']);
+$router->get('/user/vehicle',              [UserDashboardController::class, 'vehicleForm']);
+$router->get('/user/vehicle/edit',         [UserDashboardController::class, 'vehicleForm']);
+
 
 /* ===== Profil EDIT – URL canonique ===== */
 $router->get('/profil/edit',               [UserDashboardController::class, 'editForm']);

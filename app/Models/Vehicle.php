@@ -1,35 +1,70 @@
 <?php
+declare(strict_types=1);
+
 namespace App\Models;
 
-
+use App\Db\Sql; // même helper que tes autres modèles
 use PDO;
 
-
-class Vehicle extends BaseModels
+final class Vehicle
 {
-public static function create(int $userId, string $plaque, string $marque, string $modele, string $couleur, string $energie, string $dateImmat, int $places): int {
-$sql = "INSERT INTO vehicles(user_id,plaque,marque,modele,couleur,energie,date_immat,places_disponibles,created_at) VALUES(:u,:p,:ma,:mo,:c,:e,:di,:pl,NOW())";
-$pdo = self::pdo();
-$pdo->prepare($sql)->execute([':u'=>$userId,':p'=>$plaque,':ma'=>$marque,':mo'=>$modele,':c'=>$couleur,':e'=>$energie,':di'=>$dateImmat,':pl'=>$places]);
-return (int)$pdo->lastInsertId();
-}
+    private static function pdo(): PDO { return Sql::pdo(); }
 
+    public static function forUser(int $userId): array
+    {
+        $st = self::pdo()->prepare(
+          "SELECT id, user_id, brand, model, color, energy, plate, first_reg_date, seats
+             FROM vehicles WHERE user_id=:uid ORDER BY id DESC"
+        );
+        $st->execute([':uid'=>$userId]);
+        return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
 
-public static function findById(int $id): ?array { return self::one("SELECT * FROM vehicles WHERE id=:id", [':id'=>$id]); }
+    public static function findOwned(int $id, int $userId): ?array
+    {
+        $st = self::pdo()->prepare("SELECT * FROM vehicles WHERE id=:id AND user_id=:uid");
+        $st->execute([':id'=>$id, ':uid'=>$userId]);
+        $row = $st->fetch(PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
 
+    public static function create(int $userId, array $d): bool
+    {
+        $st = self::pdo()->prepare(
+          "INSERT INTO vehicles (user_id, brand, model, color, energy, plate, first_reg_date, seats)
+           VALUES (:uid, :brand, :model, :color, :energy, :plate, :first_reg_date, :seats)"
+        );
+        return $st->execute([
+            ':uid'=>$userId,
+            ':brand'=>$d['brand'] ?? null, ':model'=>$d['model'] ?? null, ':color'=>$d['color'] ?? null,
+            ':energy'=>$d['energy'] ?? null, ':plate'=>$d['plate'] ?? null,
+            ':first_reg_date'=>($d['first_reg_date'] ?: null),
+            ':seats'=>(int)($d['seats'] ?? 0),
+        ]);
+    }
 
-public static function listByUser(int $userId): array { return self::all("SELECT * FROM vehicles WHERE user_id=:u ORDER BY created_at DESC", [':u'=>$userId]); }
+    public static function update(int $id, int $userId, array $d): bool
+    {
+        $st = self::pdo()->prepare(
+          "UPDATE vehicles
+              SET brand=:brand, model=:model, color=:color, energy=:energy, plate=:plate,
+                  first_reg_date=:first_reg_date, seats=:seats
+            WHERE id=:id AND user_id=:uid"
+        );
+        $st->execute([
+            ':brand'=>$d['brand'] ?? null, ':model'=>$d['model'] ?? null, ':color'=>$d['color'] ?? null,
+            ':energy'=>$d['energy'] ?? null, ':plate'=>$d['plate'] ?? null,
+            ':first_reg_date'=>($d['first_reg_date'] ?: null),
+            ':seats'=>(int)($d['seats'] ?? 0),
+            ':id'=>$id, ':uid'=>$userId,
+        ]);
+        return $st->rowCount()>0;
+    }
 
-
-public static function update(int $id, array $fields): bool {
-$allowed=['plaque','marque','modele','couleur','energie','date_immat','places_disponibles'];
-$set=[];$params=[':id'=>$id];
-foreach ($fields as $k=>$v) if (in_array($k,$allowed,true)) { $set[]="$k=:$k"; $params[":$k"]=$v; }
-if (!$set) return false;
-$sql='UPDATE vehicles SET '.implode(', ',$set).' WHERE id=:id';
-return self::pdo()->prepare($sql)->execute($params);
-}
-
-
-public static function delete(int $id): bool { return self::pdo()->prepare("DELETE FROM vehicles WHERE id=:id")->execute([':id'=>$id]); }
+    public static function delete(int $id, int $userId): bool
+    {
+        $st = self::pdo()->prepare("DELETE FROM vehicles WHERE id=:id AND user_id=:uid");
+        $st->execute([':id'=>$id, ':uid'=>$userId]);
+        return $st->rowCount()>0;
+    }
 }

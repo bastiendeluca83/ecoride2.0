@@ -2,6 +2,7 @@
 /** @var array $user */
 /** @var array $reservations */
 /** @var array $rides */
+/** @var array $vehicles */
 if (!function_exists('e')) {
   function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 }
@@ -52,7 +53,7 @@ if (!function_exists('e')) {
       </div>
     </div>
 
-    <!-- Profil -->
+    <!-- Profil + Véhicule (si présent) -->
     <div class="row justify-content-center mb-4">
       <div class="col-lg-6">
         <div class="card border-0 shadow rounded-3 overflow-hidden">
@@ -104,6 +105,52 @@ if (!function_exists('e')) {
           </div>
         </div>
       </div>
+
+      <?php if (!empty($vehicles)): ?>
+      <div class="col-lg-6">
+        <div class="card border-0 shadow rounded-3 overflow-hidden">
+          <div class="card-header text-white" style="background: linear-gradient(135deg, #20bf6b 0%, #0fb9b1 100%); padding: 1.5rem;">
+            <h5 class="fw-bold mb-1"><i class="fas fa-car me-2"></i>Mon véhicule</h5>
+            <small class="opacity-85">Gestion de mes véhicules</small>
+          </div>
+          <div class="card-body p-3">
+            <?php foreach ($vehicles as $v): ?>
+              <div class="border rounded-3 p-3 mb-2 bg-white">
+                <!-- Infos véhicule -->
+                <div>
+                  <div class="fw-bold mb-1"><?= e($v['brand'] ?? '') ?> <?= e($v['model'] ?? '') ?> • <?= e($v['color'] ?? '') ?></div>
+                  <div class="small text-muted">
+                    <i class="fas fa-bolt me-1"></i><?= e($v['energy'] ?? '') ?> ·
+                    <i class="fas fa-id-card me-1 ms-2"></i><?= e($v['plate'] ?? '') ?> ·
+                    <i class="fas fa-chair me-1 ms-2"></i><?= (int)($v['seats'] ?? 0) ?> place<?= ((int)($v['seats'] ?? 0) > 1 ? 's' : '') ?>
+                  </div>
+                </div>
+
+                <!-- Actions en bas -->
+                <div class="d-flex justify-content-end gap-2 pt-2 mt-3 border-top">
+                  <a class="btn btn-outline-primary btn-sm"
+                     href="<?= BASE_URL ?>user/vehicle/edit?id=<?= (int)$v['id'] ?>">
+                    <i class="fas fa-edit me-1"></i>Modifier
+                  </a>
+                  <form method="post" action="<?= BASE_URL ?>user/vehicle/delete"
+                        onsubmit="return confirm('Supprimer ce véhicule ?');" class="m-0">
+                    <?= \App\Security\Security::csrfField(); ?>
+                    <input type="hidden" name="id" value="<?= (int)$v['id'] ?>">
+                    <button class="btn btn-outline-danger btn-sm">
+                      <i class="fas fa-trash me-1"></i>Supprimer
+                    </button>
+                  </form>
+                </div>
+              </div>
+            <?php endforeach; ?>
+
+            <a href="<?= BASE_URL ?>user/vehicle" class="btn btn-success w-100 mt-2">
+              <i class="fas fa-plus me-2"></i>Ajouter un véhicule
+            </a>
+          </div>
+        </div>
+      </div>
+      <?php endif; ?>
     </div>
 
     <!-- Réservations -->
