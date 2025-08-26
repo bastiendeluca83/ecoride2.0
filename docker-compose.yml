@@ -20,8 +20,11 @@ services:
       - ./docker/php/php.ini/php.ini:/usr/local/etc/php/conf.d/zz-custom.ini:ro
       - ./apache/default.conf:/etc/apache2/sites-available/000-default.conf:ro
     depends_on:
-      - db
-      - mongo
+      db:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
     networks:
       - ecoride_network
 
@@ -38,6 +41,12 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
       - ./docker/mysql-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -proot || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
     networks:
       - ecoride_network
 
@@ -48,6 +57,31 @@ services:
       - "27017:27017"
     volumes:
       - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok' || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+    networks:
+      - ecoride_network
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: ecoride_pma
+    ports:
+      - "8081:80"          # Accès: http://localhost:8081
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      PMA_USER: ecoride_user
+      PMA_PASSWORD: ecoride_password
+      PMA_ARBITRARY: "0"   # (optionnel) interdit de changer d’hôte
+      UPLOAD_LIMIT: 128M
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
     networks:
       - ecoride_network
 
