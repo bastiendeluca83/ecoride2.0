@@ -223,6 +223,18 @@ $age = age_years($dobRaw);
                       </div>
                     </div>
 
+                    <?php if (!empty($res['date_end'])): ?>
+                    <!-- >>> AJOUT affichage arrivée pour réservation -->
+                    <div class="mb-2">
+                      <small class="text-muted">ARRIVÉE</small>
+                      <div class="small fw-bold text-dark">
+                        <i class="fas fa-flag-checkered me-1"></i>
+                        <?= e(date('d/m à H:i', strtotime($res['date_end']))) ?>
+                      </div>
+                    </div>
+                    <?php endif; ?>
+                    <!-- ^^^ FIN AJOUT -->
+
                     <a class="btn btn-outline-danger btn-sm w-100 rounded-3 fw-semibold"
                        href="<?= BASE_URL ?>user/ride/cancel?id=<?= (int)($res['id'] ?? 0) ?>">
                       <i class="fas fa-times me-1"></i>Annuler
@@ -284,6 +296,18 @@ $age = age_years($dobRaw);
                         <?= e(isset($ride['date_start']) ? date('d/m à H:i', strtotime($ride['date_start'])) : '') ?>
                       </div>
                     </div>
+
+                    <?php if (!empty($ride['date_end'])): ?>
+                    <!-- >>> AJOUT affichage arrivée pour trajet conducteur -->
+                    <div class="mb-2">
+                      <small class="text-muted">ARRIVÉE</small>
+                      <div class="small fw-bold text-dark">
+                        <i class="fas fa-flag-checkered me-1"></i>
+                        <?= e(date('d/m à H:i', strtotime($ride['date_end']))) ?>
+                      </div>
+                    </div>
+                    <?php endif; ?>
+                    <!-- ^^^ FIN AJOUT -->
 
                     <div class="d-grid gap-1">
                       <div class="btn-group" role="group">

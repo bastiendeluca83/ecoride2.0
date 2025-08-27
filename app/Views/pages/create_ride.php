@@ -49,6 +49,13 @@ $firstVehicleId = isset($vehicles[0]['id']) ? (int)$vehicles[0]['id'] : 0;
       <input type="datetime-local" name="date_start" class="form-control" required>
     </div>
 
+    <!-- >>> AJOUT : Date & heure d'arrivée <<< -->
+    <div class="col-md-6">
+      <label class="form-label">Date & heure d'arrivée *</label>
+      <input type="datetime-local" name="date_end" class="form-control" required>
+    </div>
+    <!-- ^^^ FIN AJOUT ^^^ -->
+
     <div class="col-md-6">
       <label class="form-label">Prix (crédits) / place (optionnel)</label>
       <input type="number" name="price" class="form-control" min="0" step="1" placeholder="ex : 5">

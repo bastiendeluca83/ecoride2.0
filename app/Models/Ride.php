@@ -31,6 +31,22 @@ class Ride
         return (int)$pdo->lastInsertId();
     }
 
+    /* >>> AJOUT : méthode helper compatible avec le contrôleur qui passe un payload array */
+    public static function createForDriver(int $driverId, int $vehicleId, array $payload) {
+        $from = trim((string)($payload['from_city']  ?? ''));
+        $to   = trim((string)($payload['to_city']    ?? ''));
+        $ds   = trim((string)($payload['date_start'] ?? ''));
+        $de   = trim((string)($payload['date_end']   ?? ''));
+        $price= (int)($payload['price'] ?? 0);
+        $seats= (int)($payload['seats'] ?? 0);
+
+        if ($from==='' || $to==='' || $ds==='' || $de==='' || $seats<=0) return false;
+
+        $id = self::create($driverId, $vehicleId, $from, $to, $ds, $de, $price, $seats);
+        return $id > 0 ? $id : false;
+    }
+    /* ^^^ FIN AJOUT ^^^ */
+
     public static function findById(int $id): ?array {
         $sql = "SELECT r.*, u.email AS driver_email, v.brand, v.model, v.energy, v.seats
                 FROM rides r

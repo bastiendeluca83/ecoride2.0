@@ -335,28 +335,65 @@ final class UserDashboardController extends BaseController
                 'from_city'  => trim((string)($_POST['from_city']  ?? '')),
                 'to_city'    => trim((string)($_POST['to_city']    ?? '')),
                 'date_start' => trim((string)($_POST['date_start'] ?? '')),
+                'date_end'   => trim((string)($_POST['date_end']   ?? '')), // AJOUT
                 'seats'      => (int)($_POST['seats'] ?? 0),
                 'price'      => (int)($_POST['price'] ?? 0),
                 'notes'      => trim((string)($_POST['notes'] ?? '')),
             ];
 
-            if ($payload['from_city']==='' || $payload['to_city']==='' || $payload['date_start']==='' || $payload['seats']<=0) {
-                $_SESSION['flash_error'] = 'Ville départ, arrivée, date et places sont obligatoires.';
+            // Champs obligatoires (inclut date_end)
+            if ($payload['from_city']==='' || $payload['to_city']==='' || $payload['date_start']==='' || $payload['date_end']==='' || $payload['seats']<=0) {
+                $_SESSION['flash_error'] = 'Ville départ, arrivée, dates et places sont obligatoires.';
+                header('Location: ' . BASE_URL . 'user/ride/create'); exit;
+            }
+
+            // Cohérence des dates : arrivée > départ
+            try {
+                $ds = new \DateTime($payload['date_start']);
+                $de = new \DateTime($payload['date_end']);
+                if ($de <= $ds) {
+                    $_SESSION['flash_error'] = 'La date/heure d’arrivée doit être postérieure au départ.';
+                    header('Location: ' . BASE_URL . 'user/ride/create'); exit;
+                }
+            } catch (\Throwable $e) {
+                $_SESSION['flash_error'] = 'Format de date invalide.';
                 header('Location: ' . BASE_URL . 'user/ride/create'); exit;
             }
 
             $ok = false;
+
+            // 1) Si tu as une méthode createForDriver(array)
             if (method_exists(Ride::class, 'createForDriver')) {
-                $ok = Ride::createForDriver($uid, $vehicleId, $payload);
-            } elseif (method_exists(Ride::class, 'create')) {
-                $ok = Ride::create($uid, $vehicleId, $payload);
+                $ok = (bool)Ride::createForDriver($uid, $vehicleId, $payload);
+            } else {
+                // 2) Compatibilité avec ta signature Ride::create(int,int,string,string,string,string,int,int,...)
+                try {
+                    $newId = Ride::create(
+                        $uid,
+                        $vehicleId,
+                        $payload['from_city'],
+                        $payload['to_city'],
+                        $payload['date_start'],
+                        $payload['date_end'],
+                        (int)$payload['price'],
+                        (int)$payload['seats']
+                    );
+                    $ok = $newId > 0;
+                } catch (\ArgumentCountError|\TypeError $e) {
+                    // 3) Fallback: certaines anciennes versions acceptent un payload array
+                    try {
+                        $ok = (bool)Ride::create($uid, $vehicleId, $payload);
+                    } catch (\Throwable $e2) {
+                        $ok = false;
+                    }
+                }
             }
 
             if ($ok) {
                 $_SESSION['flash_success'] = 'Trajet publié.';
                 header('Location: ' . BASE_URL . 'user/dashboard'); exit;
             } else {
-                $_SESSION['flash_error'] = "Impossible d’enregistrer le trajet (implémenter Ride::create*).";
+                $_SESSION['flash_error'] = "Impossible d’enregistrer le trajet.";
                 header('Location: ' . BASE_URL . 'user/ride/create'); exit;
             }
         }
