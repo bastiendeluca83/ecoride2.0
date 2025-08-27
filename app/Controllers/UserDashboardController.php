@@ -87,6 +87,7 @@ final class UserDashboardController extends BaseController
             'first_name'  => $_POST['first_name'] ?? null,
             'phone'       => $_POST['phone']      ?? null,
             'address'     => $_POST['address']    ?? null,
+            'date_naissance' => $_POST['date_naissance'] ?? null, // [ADD date_naissance]
         ];
         $data = [];
         foreach ($payload as $k=>$v) {

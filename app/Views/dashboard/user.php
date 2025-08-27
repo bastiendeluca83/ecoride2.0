@@ -8,6 +8,27 @@
 if (!function_exists('e')) {
   function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 }
+
+/** Calcule l'âge (années pleines) à partir d'une date YYYY-MM-DD */
+if (!function_exists('age_years')) {
+  function age_years(?string $dateNaissance): ?int {
+    $d = $dateNaissance ? trim($dateNaissance) : '';
+    if ($d === '') return null;
+    try {
+      $dob = new \DateTime($d);
+      $now = new \DateTime('today');
+      return $dob->diff($now)->y;
+    } catch (\Throwable $e) {
+      return null;
+    }
+  }
+}
+
+/* Prépare affichage date de naissance + âge (toujours basé BDD) */
+$dobRaw = $user['date_naissance'] ?? null;
+$dobTxt = $dobRaw ? date('d/m/Y', strtotime($dobRaw)) : null;
+/* On priorise un éventuel $user['age_years'] fourni par le contrôleur, sinon on recalcule ici */
+$age = isset($user['age_years']) && $user['age_years'] !== null ? (int)$user['age_years'] : age_years($dobRaw);
 ?>
 <div class="container-fluid px-4 py-5" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); min-height: 100vh;">
   <div class="container">
@@ -111,6 +132,20 @@ if (!function_exists('e')) {
                 <div class="p-2 rounded-3 border bg-white">
                   <div class="text-danger small mb-1 fw-semibold"><i class="fas fa-home me-1"></i>Adresse</div>
                   <div class="fw-bold text-dark"><?= e($user['adresse'] ?? '—') ?></div>
+                </div>
+              </div>
+
+              <!-- Date de naissance + Âge -->
+              <div class="col-6">
+                <div class="p-2 rounded-3 border bg-white">
+                  <div class="text-secondary small mb-1 fw-semibold"><i class="fas fa-birthday-cake me-1"></i>Date de naissance</div>
+                  <div class="fw-bold text-dark"><?= $dobTxt ? e($dobTxt) : '—' ?></div>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="p-2 rounded-3 border bg-white">
+                  <div class="text-secondary small mb-1 fw-semibold"><i class="fas fa-hourglass-half me-1"></i>Âge</div>
+                  <div class="fw-bold text-dark"><?= $age !== null ? e((string)$age).' ans' : '—' ?></div>
                 </div>
               </div>
             </div>

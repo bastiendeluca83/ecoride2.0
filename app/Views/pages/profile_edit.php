@@ -8,6 +8,22 @@ $pref = function($k, $default = 0) use ($prefs) {
   $v = $prefs[$k] ?? $default;
   return (string)$v === '1' ? '1' : '0';
 };
+
+/** Calcule l'âge (années pleines) à partir d'une date YYYY-MM-DD */
+function age_years(?string $dateNaissance): ?int {
+  $d = $dateNaissance ? trim($dateNaissance) : '';
+  if ($d === '') return null;
+  try {
+    $dob = new \DateTime($d);
+    $now = new \DateTime('today');
+    return $dob->diff($now)->y;
+  } catch (\Throwable $e) {
+    return null;
+  }
+}
+
+$dob = $user['date_naissance'] ?? null;
+$age = age_years($dob);
 ?>
 <div class="container my-4">
   <h1 class="h3 mb-3"><?= e($title ?? 'Modifier mon profil') ?></h1>
@@ -27,8 +43,8 @@ $pref = function($k, $default = 0) use ($prefs) {
       <label class="form-label">Photo de profil (avatar)</label>
       <div class="d-flex align-items-center gap-3">
         <?php
-          $avatar = $user['avatar_path'] ?? ($_SESSION['user']['avatar_path'] ?? null);
-          $avatarUrl = $avatar ? (BASE_URL . $avatar) : (BASE_URL . 'assets/img/avatar-placeholder.png');
+        $avatar = $user['avatar_path'] ?? ($_SESSION['user']['avatar_path'] ?? null);
+        $avatarUrl = $avatar ? (BASE_URL . $avatar) : (BASE_URL . 'assets/img/avatar-placeholder.png');
         ?>
         <img src="<?= e($avatarUrl) ?>" alt="Avatar" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:1px solid #ddd;">
         <input type="file" name="avatar" class="form-control" accept="image/*">
@@ -38,32 +54,40 @@ $pref = function($k, $default = 0) use ($prefs) {
 
     <div class="col-md-6">
       <label class="form-label">Nom</label>
-      <input type="text" name="last_name" class="form-control" required
-             value="<?= e($user['last_name'] ?? $user['nom'] ?? '') ?>">
+      <input type="text" name="last_name" class="form-control" required value="<?= e($user['last_name'] ?? $user['nom'] ?? '') ?>">
     </div>
-
     <div class="col-md-6">
       <label class="form-label">Prénom</label>
-      <input type="text" name="first_name" class="form-control" required
-             value="<?= e($user['first_name'] ?? $user['prenom'] ?? '') ?>">
+      <input type="text" name="first_name" class="form-control" required value="<?= e($user['first_name'] ?? $user['prenom'] ?? '') ?>">
     </div>
 
     <div class="col-md-6">
       <label class="form-label">Email</label>
-      <input type="email" name="email" class="form-control" required
-             value="<?= e($user['email'] ?? '') ?>">
+      <input type="email" name="email" class="form-control" required value="<?= e($user['email'] ?? '') ?>">
     </div>
-
     <div class="col-md-6">
       <label class="form-label">Téléphone</label>
-      <input type="text" name="phone" class="form-control"
-             value="<?= e($user['phone'] ?? $user['telephone'] ?? '') ?>">
+      <input type="text" name="phone" class="form-control" value="<?= e($user['phone'] ?? $user['telephone'] ?? '') ?>">
     </div>
 
     <div class="col-12">
       <label class="form-label">Adresse</label>
-      <input type="text" name="address" class="form-control"
-             value="<?= e($user['address'] ?? $user['adresse'] ?? '') ?>">
+      <input type="text" name="address" class="form-control" value="<?= e($user['address'] ?? $user['adresse'] ?? '') ?>">
+    </div>
+
+    <!-- Date de naissance + âge -->
+    <div class="col-md-6">
+      <label class="form-label">Date de naissance</label>
+      <input type="date" name="date_naissance" class="form-control" value="<?= e($dob ?? '') ?>">
+      <div class="form-text">Utilisée pour afficher votre âge.</div>
+    </div>
+    <div class="col-md-6 d-flex align-items-end">
+      <div>
+        <label class="form-label d-block">Âge</label>
+        <div class="fw-semibold">
+          <?= $age !== null ? e($age).' ans' : '<span class="text-muted">—</span>' ?>
+        </div>
+      </div>
     </div>
 
     <div class="col-12">
@@ -79,36 +103,41 @@ $pref = function($k, $default = 0) use ($prefs) {
         <div class="col-md-4">
           <label class="form-label">Fumeur</label>
           <select name="pref_smoking" class="form-select">
-            <option value="0" <?= $pref('smoking')==='0'?'selected':''; ?>>Non</option>
-            <option value="1" <?= $pref('smoking')==='1'?'selected':''; ?>>Oui</option>
+            <option value="0" <?= $pref('smoking')==='0'?'selected':''; ?>>N/A</option>
+            <option value="0" <?= $pref('smoking')==='1'?'selected':''; ?>>Non</option>
+            <option value="1" <?= $pref('smoking')==='2'?'selected':''; ?>>Oui</option>
           </select>
         </div>
         <div class="col-md-4">
           <label class="form-label">Animaux acceptés</label>
           <select name="pref_pets" class="form-select">
-            <option value="0" <?= $pref('pets')==='0'?'selected':''; ?>>Non</option>
-            <option value="1" <?= $pref('pets')==='1'?'selected':''; ?>>Oui</option>
+            <option value="0" <?= $pref('pets')==='0'?'selected':''; ?>>N/A</option>
+            <option value="0" <?= $pref('pets')==='1'?'selected':''; ?>>Non</option>
+            <option value="1" <?= $pref('pets')==='2'?'selected':''; ?>>Oui</option>
           </select>
         </div>
         <div class="col-md-4">
           <label class="form-label">Musique</label>
           <select name="pref_music" class="form-select">
-            <option value="0" <?= $pref('music')==='0'?'selected':''; ?>>Plutôt non</option>
-            <option value="1" <?= $pref('music')==='1'?'selected':''; ?>>Avec plaisir</option>
+            <option value="0" <?= $pref('music')==='0'?'selected':''; ?>>N/A</option>
+            <option value="0" <?= $pref('music')==='1'?'selected':''; ?>>Plutôt non</option>
+            <option value="1" <?= $pref('music')==='2'?'selected':''; ?>>Avec plaisir</option>
           </select>
         </div>
         <div class="col-md-4">
           <label class="form-label">Discussion</label>
           <select name="pref_chat" class="form-select">
-            <option value="0" <?= $pref('chat')==='0'?'selected':''; ?>>Discret</option>
-            <option value="1" <?= $pref('chat')==='1'?'selected':''; ?>>Bavard</option>
+            <option value="0" <?= $pref('chat')==='0'?'selected':''; ?>>N/A</option>
+            <option value="0" <?= $pref('chat')==='1'?'selected':''; ?>>Discret</option>
+            <option value="1" <?= $pref('chat')==='2'?'selected':''; ?>>Bavard</option>
           </select>
         </div>
         <div class="col-md-4">
           <label class="form-label">Climatisation</label>
           <select name="pref_ac" class="form-select">
-            <option value="0" <?= $pref('ac')==='0'?'selected':''; ?>>Peu/éteinte</option>
+            <option value="0" <?= $pref('ac')==='0'?'selected':''; ?>>N/A</option>
             <option value="1" <?= $pref('ac')==='1'?'selected':''; ?>>Oui</option>
+            <option value="0" <?= $pref('ac')==='2'?'selected':''; ?>>Peu/éteinte</option>
           </select>
         </div>
       </div>

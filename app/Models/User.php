@@ -12,13 +12,15 @@ class User
     private static function pdo(): \PDO { return Sql::pdo(); }
 
     private static function one(string $sql, array $p = []): ?array {
-        $st = self::pdo()->prepare($sql); $st->execute($p);
+        $st = self::pdo()->prepare($sql);
+        $st->execute($p);
         $row = $st->fetch(PDO::FETCH_ASSOC);
         return $row ?: null;
     }
 
     private static function all(string $sql, array $p = []): array {
-        $st = self::pdo()->prepare($sql); $st->execute($p);
+        $st = self::pdo()->prepare($sql);
+        $st->execute($p);
         return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
@@ -27,8 +29,7 @@ class User
        ========================= */
     private static ?bool $useEnglishCols = null;
 
-    private static function useEnglish(): bool
-    {
+    private static function useEnglish(): bool {
         if (self::$useEnglishCols !== null) return self::$useEnglishCols;
         $st = self::pdo()->prepare("SHOW COLUMNS FROM users LIKE 'last_name'");
         $st->execute();
@@ -39,58 +40,48 @@ class User
     /* =========================
        CRUD / Auth
        ========================= */
-    public static function create(string $pseudo, string $email, string $plainPassword, string $role = 'USER', int $credits = 20): int
-    {
+    public static function create(string $pseudo, string $email, string $plainPassword, string $role = 'USER', int $credits = 20): int {
         $hash = password_hash($plainPassword, PASSWORD_BCRYPT);
-        $sql  = "INSERT INTO users(nom,email,password_hash,role,credits,created_at)
-                 VALUES(:p,:e,:h,:r,:c,NOW())";
+        $sql = "INSERT INTO users(nom,email,password_hash,role,credits,created_at) VALUES(:p,:e,:h,:r,:c,NOW())";
         $pdo = self::pdo();
         $pdo->prepare($sql)->execute([':p'=>$pseudo, ':e'=>$email, ':h'=>$hash, ':r'=>$role, ':c'=>$credits]);
         return (int)$pdo->lastInsertId();
     }
 
-    public static function findByEmail(string $email): ?array
-    {
+    public static function findByEmail(string $email): ?array {
         return self::one("SELECT * FROM users WHERE email=:e LIMIT 1", [':e'=>$email]);
     }
 
-    public static function verifyPassword(string $email, string $password): ?array
-    {
+    public static function verifyPassword(string $email, string $password): ?array {
         $user = self::findByEmail($email);
         if (!$user || !password_verify($password, $user['password_hash'] ?? '')) return null;
         return $user;
     }
 
-    public static function listAll(?string $role = null): array
-    {
+    public static function listAll(?string $role = null): array {
         if ($role) return self::all("SELECT * FROM users WHERE role=:r ORDER BY created_at DESC", [':r'=>$role]);
         return self::all("SELECT * FROM users ORDER BY created_at DESC");
     }
 
-    public static function delete(int $id): bool
-    {
+    public static function delete(int $id): bool {
         return self::pdo()->prepare("DELETE FROM users WHERE id=:id")->execute([':id'=>$id]);
     }
 
-    public static function setRole(int $id, string $role): bool
-    {
+    public static function setRole(int $id, string $role): bool {
         return self::pdo()->prepare("UPDATE users SET role=:r WHERE id=:id")->execute([':r'=>$role, ':id'=>$id]);
     }
 
-    public static function adjustCredits(int $id, int $delta): bool
-    {
+    public static function adjustCredits(int $id, int $delta): bool {
         return self::pdo()->prepare("UPDATE users SET credits = credits + :d WHERE id=:id")->execute([':d'=>$delta, ':id'=>$id]);
     }
 
-    public static function firstOrCreateByEmail(string $pseudo, string $email, string $plain, string $role='USER', int $credits=20): int
-    {
+    public static function firstOrCreateByEmail(string $pseudo, string $email, string $plain, string $role='USER', int $credits=20): int {
         $row = self::findByEmail($email);
         if ($row) return (int)$row['id'];
         return self::create($pseudo, $email, $plain, $role, $credits);
     }
 
-    public static function emailExists(string $email, int $excludeId = 0): bool
-    {
+    public static function emailExists(string $email, int $excludeId = 0): bool {
         $st = self::pdo()->prepare('SELECT 1 FROM users WHERE email = :e AND id <> :id LIMIT 1');
         $st->execute([':e'=>$email, ':id'=>$excludeId]);
         return (bool)$st->fetchColumn();
@@ -99,73 +90,134 @@ class User
     /* =========================
        Profil (FR/EN mapping)
        ========================= */
-    public static function findById(int $id): ?array
-    {
+    public static function findById(int $id): ?array {
         if (self::useEnglish()) {
+            // Schéma EN (avec alias FR attendus dans le reste de l’app)
             $sql = 'SELECT id,
                            last_name  AS nom,
                            first_name AS prenom,
                            email,
                            phone      AS telephone,
                            address    AS adresse,
-                           credits,
-                           role,
-                           avatar_path
+                           credits, role, bio, avatar_path,
+                           date_naissance            -- [ADD date_naissance]
                     FROM users WHERE id = :id';
         } else {
-            $sql = 'SELECT id, nom, prenom, email, telephone, adresse, credits, role, bio, avatar_path
+            // Schéma FR
+            $sql = 'SELECT id, nom, prenom, email, telephone, adresse, credits, role, bio, avatar_path, date_naissance -- [ADD date_naissance]
                     FROM users WHERE id = :id';
         }
-        try { return self::one($sql, [':id'=>$id]); }
-        catch (\Throwable $e) { error_log('[User::findById] '.$e->getMessage()); return null; }
+        try {
+            return self::one($sql, [':id'=>$id]);
+        } catch (\Throwable $e) {
+            error_log('[User::findById] '.$e->getMessage());
+            return null;
+        }
     }
 
     /**
-     * $data accepte FR (nom, prenom, telephone, adresse, email, bio)
-     * et/ou EN (last_name, first_name, phone, address, email)
-     * + on autorise "avatar_path" au cas où (même si tu utilises updateAvatar()).
+     * $data accepte FR (nom, prenom, telephone, adresse, email, bio, date_naissance)
+     * et/ou EN (last_name, first_name, phone, address, email, bio, date_naissance)
+     * + on autorise "avatar_path".
      */
-    public static function updateProfile(int $id, array $data): bool
-    {
+    public static function updateProfile(int $id, array $data): bool {
         $useEN = self::useEnglish();
-        $map = $useEN
-            ? ['nom'=>'last_name','prenom'=>'first_name','telephone'=>'phone','adresse'=>'address','email'=>'email','bio'=>'bio','avatar_path'=>'avatar_path',
-               'last_name'=>'last_name','first_name'=>'first_name','phone'=>'phone','address'=>'address']
-            : ['nom'=>'nom','prenom'=>'prenom','telephone'=>'telephone','adresse'=>'adresse','email'=>'email','bio'=>'bio','avatar_path'=>'avatar_path',
-               'last_name'=>'nom','first_name'=>'prenom','phone'=>'telephone','address'=>'adresse'];
 
-        $set = []; $p = [':id'=>$id];
+        $map = $useEN
+            ? [
+                'nom'=>'last_name', 'prenom'=>'first_name', 'telephone'=>'phone', 'adresse'=>'address',
+                'email'=>'email', 'bio'=>'bio', 'avatar_path'=>'avatar_path',
+                'last_name'=>'last_name','first_name'=>'first_name','phone'=>'phone','address'=>'address',
+                'date_naissance' => 'date_naissance', // [ADD date_naissance]
+              ]
+            : [
+                'nom'=>'nom', 'prenom'=>'prenom', 'telephone'=>'telephone', 'adresse'=>'adresse',
+                'email'=>'email', 'bio'=>'bio', 'avatar_path'=>'avatar_path',
+                'last_name'=>'nom','first_name'=>'prenom','phone'=>'telephone','address'=>'adresse',
+                'date_naissance' => 'date_naissance', // [ADD date_naissance]
+              ];
+
+        $set = [];
+        $p = [':id'=>$id];
         foreach ($data as $k=>$v) {
             if (!isset($map[$k])) continue;
             $col = $map[$k];
             $val = is_string($v) ? trim($v) : $v;
-            $set[]      = "$col = :$col";
-            $p[":$col"] = $val;
+            $set[] = "$col = :$col";
+            $p[":$col"] = ($val === '') ? null : $val;
         }
         if (!$set) return false;
 
-        $sql = 'UPDATE users SET '.implode(', ',$set).', updated_at = CURRENT_TIMESTAMP WHERE id = :id';
-        try { return self::pdo()->prepare($sql)->execute($p); }
-        catch (\Throwable $e) { error_log('[User::updateProfile] '.$e->getMessage()); return false; }
+        $sql = 'UPDATE users SET '.implode(', ', $set).', updated_at = CURRENT_TIMESTAMP WHERE id = :id';
+        try {
+            return self::pdo()->prepare($sql)->execute($p);
+        } catch (\Throwable $e) {
+            error_log('[User::updateProfile] '.$e->getMessage());
+            return false;
+        }
     }
 
-    public static function updatePassword(int $id, string $plain): bool
-    {
+    public static function updatePassword(int $id, string $plain): bool {
         $hash = password_hash($plain, PASSWORD_DEFAULT);
-        try { return self::pdo()->prepare('UPDATE users SET password_hash = :h WHERE id = :id')
-                                 ->execute([':h'=>$hash, ':id'=>$id]); }
-        catch (\Throwable $e) { error_log('[User::updatePassword] '.$e->getMessage()); return false; }
+        try {
+            return self::pdo()->prepare('UPDATE users SET password_hash = :h WHERE id = :id')
+                ->execute([':h'=>$hash, ':id'=>$id]);
+        } catch (\Throwable $e) {
+            error_log('[User::updatePassword] '.$e->getMessage());
+            return false;
+        }
     }
 
-    /** Mise à jour dédiée de l’avatar */
-    public static function updateAvatar(int $id, string $path): bool
-    {
+    /** Avatar */
+    public static function updateAvatar(int $id, string $path): bool {
         try {
             return self::pdo()->prepare('UPDATE users SET avatar_path = :a WHERE id = :id')
-                              ->execute([':a'=>$path, ':id'=>$id]);
+                ->execute([':a'=>$path, ':id'=>$id]);
         } catch (\Throwable $e) {
             error_log('[User::updateAvatar] '.$e->getMessage());
             return false;
         }
+    }
+
+    /* =========================
+       Complétude du profil
+       ========================= */
+
+    /** true si un hash de mot de passe existe */
+    public static function passwordIsSet(int $id): bool {
+        $st = self::pdo()->prepare('SELECT password_hash FROM users WHERE id=:id');
+        $st->execute([':id'=>$id]);
+        $hash = (string)$st->fetchColumn();
+        return $hash !== '';
+    }
+
+    /**
+     * Retourne ['complete'=>bool, 'missing'=>string[]]
+     * Champs obligatoires: nom, prenom, email, telephone, adresse, avatar, preferences.
+     */
+    public static function isProfileComplete(int $id): array {
+        $u = self::findById($id) ?? [];
+        $missing = [];
+
+        foreach (['nom','prenom','email','telephone','adresse'] as $f) {
+            if (empty(trim((string)($u[$f] ?? '')))) {
+                $missing[] = $f;
+            }
+        }
+
+        if (empty($u['avatar_path'])) {
+            $missing[] = 'avatar';
+        }
+
+        // préférences (on exige qu'une ligne existe)
+        try {
+            if (!\App\Models\UserPreferences::exists($id)) {
+                $missing[] = 'preferences';
+            }
+        } catch (\Throwable $e) {
+            $missing[] = 'preferences';
+        }
+
+        return ['complete' => count($missing) === 0, 'missing' => $missing];
     }
 }
