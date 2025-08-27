@@ -10,6 +10,8 @@ use App\Controllers\AdminController;
 use App\Controllers\StaticController;
 /* Optionnel si tu as ce contrôleur : */
 use App\Controllers\TrajetController;
+/* AJOUT pour la route cron */
+use App\Controllers\CronController;
 
 /**
  * Routes EcoRide (MVC) — version “longue”
@@ -122,3 +124,12 @@ $router->post('/admin/employee/suspend',   [AdminController::class, 'suspendEmpl
 $router->post('/admin/users/suspend',      [AdminController::class, 'suspendUser']);
 $router->post('/admin/employees/create',   [AdminController::class, 'createEmployee']);
 $router->get('/admin',                     [AdminController::class, 'index']); // alias
+
+/* >>> NOUVELLE ROUTE API HISTORIQUE (ADMIN) <<< */
+$router->get('/admin/api/credits-history', [AdminController::class, 'apiCreditsHistory']);
+
+/* =======================
+   Cron (tâches planifiées)
+   ======================= */
+$router->get('/cron/run',                  [CronController::class, 'run']);     // GET/POST OK
+$router->post('/cron/run',                 [CronController::class, 'run']);

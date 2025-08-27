@@ -6,6 +6,8 @@ namespace App\Controllers;
 use App\Security\Security;
 use App\Models\Stats;
 use App\Models\User;
+// >>> Ajout pour l’API historique (on réutilise ton modèle existant)
+use App\Models\AdminStats;
 
 final class AdminController extends BaseController
 {
@@ -91,5 +93,55 @@ final class AdminController extends BaseController
 
         User::setSuspended($targetId, $suspend);
         header('Location: /admin?suspended=1');
+    }
+
+    // =========================================================
+    // NOUVEAU — API JSON pour l’historique des crédits
+    // GET /admin/api/credits-history?days=90
+    // Réservé ADMIN
+    // =========================================================
+    public function apiCreditsHistory(): void
+    {
+        Security::ensure(['ADMIN']);
+
+        $days = max(1, (int)($_GET['days'] ?? 90));
+        $to   = (new \DateTimeImmutable('today'))->format('Y-m-d');
+        $from = (new \DateTimeImmutable("today -$days days"))->format('Y-m-d');
+
+        // Récupère les lignes agrégées (peut être creux certains jours)
+        $rows = AdminStats::platformCreditsHistoryDetailed($from, $to, 2);
+
+        // Index par jour
+        $byDay = [];
+        foreach ($rows as $r) {
+            // Compat des noms renvoyés par la requête
+            $day = $r['jour'] ?? $r['day'] ?? null;
+            if ($day === null) continue;
+            $byDay[$day] = [
+                'credits'  => (int)($r['credits'] ?? 0),
+                'ride_ids' => (string)($r['ride_ids'] ?? ''),
+            ];
+        }
+
+        // Normalise pour avoir tous les jours de from..to
+        $out = [];
+        $cursor = new \DateTimeImmutable($from);
+        $limit  = new \DateTimeImmutable($to);
+        while ($cursor <= $limit) {
+            $d = $cursor->format('Y-m-d');
+            $out[] = [
+                'day'      => $d,
+                'credits'  => $byDay[$d]['credits']  ?? 0,
+                'ride_ids' => $byDay[$d]['ride_ids'] ?? '',
+            ];
+            $cursor = $cursor->modify('+1 day');
+        }
+
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'from' => $from,
+            'to'   => $to,
+            'data' => $out,
+        ], JSON_UNESCAPED_UNICODE);
     }
 }

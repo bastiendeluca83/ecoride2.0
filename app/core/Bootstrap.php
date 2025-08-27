@@ -94,3 +94,6 @@ require $routesFile;
 
 // Retourne l’instance au front controller (public/index.php)
 return $router;
+// ex: public/index.php ou app/bootstrap.php
+require_once __DIR__.'/../app/Config/cron.php';
+

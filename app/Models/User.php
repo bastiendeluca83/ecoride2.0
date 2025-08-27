@@ -42,10 +42,10 @@ class User
     /** Retourne le nom réel de la colonne date en BDD */
     private static function dateColumn(): ?string {
         if (self::$dateCol !== null) return self::$dateCol;
-        foreach (['date_naissance','date_of_birth','date_of_birth'] as $c) { // on couvre variantes/typos
+        foreach (['date_naissance','date_of_birth','date_of_birth'] as $c) {
             if (self::colExists($c)) { self::$dateCol = $c; return $c; }
         }
-        self::$dateCol = null; // aucune colonne date
+        self::$dateCol = null;
         return null;
     }
 
@@ -114,10 +114,12 @@ class User
                            phone      AS telephone,
                            address    AS adresse,
                            credits, role, bio, avatar_path,
+                           last_credit_topup,
                            $dateSel
                     FROM users WHERE id = :id";
         } else {
             $sql = "SELECT id, nom, prenom, email, telephone, adresse, credits, role, bio, avatar_path,
+                           last_credit_topup,
                            $dateSel
                     FROM users WHERE id = :id";
         }
@@ -136,7 +138,7 @@ class User
      */
     public static function updateProfile(int $id, array $data): bool {
         $useEN = self::useEnglish();
-        $dateCol = self::dateColumn() ?? 'date_naissance'; // fallback nominal
+        $dateCol = self::dateColumn() ?? 'date_naissance';
 
         $map = $useEN
             ? [
@@ -220,5 +222,24 @@ class User
             $missing[] = 'preferences';
         }
         return ['complete' => count($missing) === 0, 'missing' => $missing];
+    }
+
+    /* =========================
+       AJOUT : recharge auto si >= intervalle
+       ========================= */
+    public static function topUpCreditsIfDue(int $userId, int $amount, string $intervalSpec = 'P14D'): bool {
+        try {
+            $threshold = (new \DateTimeImmutable())->sub(new \DateInterval($intervalSpec))->format('Y-m-d H:i:s');
+            $sql = "UPDATE users
+                    SET credits = credits + :a, last_credit_topup = NOW()
+                    WHERE id = :id
+                      AND (last_credit_topup IS NULL OR last_credit_topup <= :th)";
+            $st = self::pdo()->prepare($sql);
+            $st->execute([':a'=>$amount, ':id'=>$userId, ':th'=>$threshold]);
+            return $st->rowCount() > 0;
+        } catch (\Throwable $e) {
+            error_log('[User::topUpCreditsIfDue] '.$e->getMessage());
+            return false;
+        }
     }
 }

@@ -80,6 +80,31 @@ if (!function_exists('e')) { function e($s){ return htmlspecialchars((string)$s,
     </div>
   </div>
 
+  <!-- ======================= -->
+  <!-- NOUVEAU : Historique    -->
+  <!-- ======================= -->
+  <hr class="my-4">
+  <section class="card shadow-sm mb-4">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="card-title mb-0">Historique des crédits (plateforme)</h5>
+        <div class="d-flex gap-2 align-items-center">
+          <label for="histDays" class="form-label mb-0 me-2 small text-muted">Plage</label>
+          <select id="histDays" class="form-select form-select-sm">
+            <option value="14">14 jours</option>
+            <option value="30">30 jours</option>
+            <option value="90" selected>90 jours</option>
+            <option value="180">180 jours</option>
+          </select>
+        </div>
+      </div>
+      <canvas id="creditsHistoryChart" height="120"></canvas>
+      <small class="text-muted d-block mt-2">
+        Données en temps réel, calculées depuis vos réservations confirmées.
+      </small>
+    </div>
+  </section>
+
   <hr class="my-4">
 
   <div class="row g-3">
@@ -149,3 +174,62 @@ if (!function_exists('e')) { function e($s){ return htmlspecialchars((string)$s,
     </div>
   </div>
 </div>
+
+<!-- Chart.js en CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const $sel    = document.getElementById('histDays');
+  const $canvas = document.getElementById('creditsHistoryChart');
+  let chart;
+
+  async function loadData(days){
+    const res  = await fetch(`/admin/api/credits-history?days=${encodeURIComponent(days)}`, { credentials: 'same-origin' });
+    const json = await res.json();
+    // labels & série
+    const labels  = json.data.map(r => r.day);
+    const credits = json.data.map(r => r.credits);
+
+    // Tooltips incluent les ride_ids
+    const rideIds = json.data.map(r => r.ride_ids || '');
+
+    if (chart) chart.destroy();
+    chart = new Chart($canvas, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Crédits gagnés / jour',
+          data: credits,
+          tension: 0.3,
+          pointRadius: 2,
+          fill: true
+        }]
+      },
+      options: {
+        responsive: true,
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+          x: { title: { display: true, text: 'Jour' } },
+          y: { title: { display: true, text: 'Crédits' }, beginAtZero: true, ticks: { precision: 0 } }
+        },
+        plugins: {
+          tooltip: {
+            callbacks: {
+              afterBody: (items) => {
+                const i = items[0].dataIndex;
+                const ids = rideIds[i];
+                return ids ? `ride_id: ${ids}` : 'Aucun trajet ce jour';
+              }
+            }
+          },
+          legend: { display: false }
+        }
+      }
+    });
+  }
+
+  $sel.addEventListener('change', () => loadData($sel.value));
+  loadData($sel.value);
+});
+</script>

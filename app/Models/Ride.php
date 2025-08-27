@@ -31,7 +31,7 @@ class Ride
         return (int)$pdo->lastInsertId();
     }
 
-    /* >>> AJOUT : méthode helper compatible avec le contrôleur qui passe un payload array */
+    /* Helper compatible contrôleur (payload array) */
     public static function createForDriver(int $driverId, int $vehicleId, array $payload) {
         $from = trim((string)($payload['from_city']  ?? ''));
         $to   = trim((string)($payload['to_city']    ?? ''));
@@ -45,7 +45,40 @@ class Ride
         $id = self::create($driverId, $vehicleId, $from, $to, $ds, $de, $price, $seats);
         return $id > 0 ? $id : false;
     }
-    /* ^^^ FIN AJOUT ^^^ */
+
+    /** AJOUT : crée le trajet si inexistant et retourne son id (anti-doublon). */
+    public static function ensureRide(
+        int $driverId,
+        int $vehicleId,
+        string $fromCity,
+        string $toCity,
+        string $dateStart,
+        string $dateEnd,
+        int $price,
+        ?int $seatsLeft = null
+    ): ?int {
+        // 1) existe déjà ?
+        $exists = self::one(
+            "SELECT id FROM rides
+             WHERE driver_id=:d AND vehicle_id=:v AND from_city=:fc AND to_city=:tc AND date_start=:ds
+             LIMIT 1",
+            [':d'=>$driverId, ':v'=>$vehicleId, ':fc'=>$fromCity, ':tc'=>$toCity, ':ds'=>$dateStart]
+        );
+        if ($exists) return (int)$exists['id'];
+
+        // 2) seats par défaut = seats du véhicule
+        if ($seatsLeft === null) {
+            $row = self::one("SELECT seats FROM vehicles WHERE id=:v", [':v'=>$vehicleId]);
+            $seatsLeft = (int)($row['seats'] ?? 0);
+            if ($seatsLeft <= 0) $seatsLeft = 1;
+        }
+
+        // 3) création
+        $id = self::create(
+            $driverId, $vehicleId, $fromCity, $toCity, $dateStart, $dateEnd, $price, $seatsLeft
+        );
+        return $id > 0 ? $id : null;
+    }
 
     public static function findById(int $id): ?array {
         $sql = "SELECT r.*, u.email AS driver_email, v.brand, v.model, v.energy, v.seats
