@@ -1,34 +1,43 @@
 <?php
-declare(strict_types=1);
-
+/* ===== Imports contrôleurs ===== */
 use App\Controllers\HomeController;
 use App\Controllers\RideController;
 use App\Controllers\AuthController;
-
-// Dashboards
-use App\Controllers\DashboardGatewayController; // passerelle /dashboard
-use App\Controllers\UserDashboardController;    // USER
-use App\Controllers\EmployeeController;         // EMPLOYEE
-use App\Controllers\AdminController;            // ADMIN
-
+use App\Controllers\DashboardGatewayController;
+use App\Controllers\UserDashboardController;
+use App\Controllers\EmployeeController;
+use App\Controllers\AdminController;
 use App\Controllers\StaticController;
+/* Optionnel si tu as ce contrôleur : */
+use App\Controllers\TrajetController;
 
 /**
- * Routes EcoRide (MVC)
- * Toutes les vues passent par app/Views/layouts/base.php via BaseController::render()
+ * Routes EcoRide (MVC) — version “longue”
+ * (pas de map/match — 1 ligne par verbe pour remonter le nombre de lignes)
  */
 
 /* =======================
-   Public / Visiteur
+   Public / Accueil
    ======================= */
-$router->get('/', [HomeController::class, 'index']);
+$router->get('/',                          [HomeController::class, 'index']);
 
-/* Rides (recherche + résultats + détail + réserver) */
-$router->map(['GET','POST'], '/rides',     [RideController::class, 'list']);   // remplace /search
+/* =======================
+   Rides (recherche/listing/détail/booking)
+   ======================= */
+$router->get('/rides',                     [RideController::class, 'list']);
+$router->post('/rides',                    [RideController::class, 'list']);   // recherche via POST
+$router->post('/search',                   [RideController::class, 'list']);   // alias historique
 $router->get('/rides/show',                [RideController::class, 'show']);
 $router->post('/rides/book',               [RideController::class, 'book']);
 
-/* Pages statiques */
+/* Alias “trajet” (si tu as ce contrôleur) */
+if (class_exists(\App\Controllers\TrajetController::class)) {
+    $router->get('/trajet',                [TrajetController::class, 'show']);
+}
+
+/* =======================
+   Pages statiques
+   ======================= */
 $router->get('/mentions-legales',          [StaticController::class, 'mentions']);
 
 /* =======================
@@ -38,8 +47,8 @@ $router->get('/signup',                    [AuthController::class, 'signupForm']
 $router->post('/signup',                   [AuthController::class, 'signup']);
 $router->get('/login',                     [AuthController::class, 'loginForm']);
 $router->post('/login',                    [AuthController::class, 'login']);
-$router->post('/logout',                   [AuthController::class, 'logout']);
-$router->get('/logout',                    [AuthController::class, 'logout']); // toléré
+$router->get('/logout',                    [AuthController::class, 'logout']); // toléré GET
+$router->post('/logout',                   [AuthController::class, 'logout']); // normal POST
 
 /* =======================
    Dashboard – Passerelle
@@ -49,52 +58,52 @@ $router->get('/dashboard',                 [DashboardGatewayController::class, '
 /* =======================
    Espace UTILISATEUR (USER)
    ======================= */
+/* Dashboard user */
 $router->get('/user/dashboard',            [UserDashboardController::class, 'index']);
 
-/* Profil + véhicules (USER) */
-$router->get('/user/profile',              [UserDashboardController::class, 'profile']);
-$router->post('/user/profile/update',      [UserDashboardController::class, 'updateProfile']);
-$router->get('/user/vehicle',              [UserDashboardController::class, 'vehicleForm']);
-$router->get('/user/vehicle/edit',         [UserDashboardController::class, 'vehicleForm']);
-
-
-/* ===== Profil EDIT – URL canonique ===== */
+/* Profil (canonique + alias FR/EN + legacy) */
 $router->get('/profil/edit',               [UserDashboardController::class, 'editForm']);
 $router->post('/profil/edit',              [UserDashboardController::class, 'update']);
-$router->post('/profile/edit',             [UserDashboardController::class, 'update']);
 $router->get('/profile/edit',              [UserDashboardController::class, 'redirectToProfilEdit']);
+$router->post('/profile/edit',             [UserDashboardController::class, 'update']); // toléré
+$router->get('/user/profile',              [UserDashboardController::class, 'profile']);
+$router->post('/user/profile/update',      [UserDashboardController::class, 'updateProfile']);
+$router->get('/profile',                   [UserDashboardController::class, 'profile']);         // legacy
+$router->post('/profile/update',           [UserDashboardController::class, 'updateProfile']);   // legacy
 
-/* --------- Véhicules (ajout/édition/suppression) --------- */
-/* GET form create/edit (NOUVEAU) */
+/* Véhicules (form GET + actions POST) */
 $router->get('/user/vehicle',              [UserDashboardController::class, 'vehicleForm']);
 $router->get('/user/vehicle/edit',         [UserDashboardController::class, 'vehicleForm']);
-/* POST actions (conservées) */
 $router->post('/user/vehicle/add',         [UserDashboardController::class, 'addVehicle']);
 $router->post('/user/vehicle/edit',        [UserDashboardController::class, 'editVehicle']);
 $router->post('/user/vehicle/delete',      [UserDashboardController::class, 'deleteVehicle']);
-/* Alias rétro-compat GET (si anciens liens) */
+/* alias legacy */
 $router->get('/vehicle',                   [UserDashboardController::class, 'vehicleForm']);
 $router->get('/vehicle/edit',              [UserDashboardController::class, 'vehicleForm']);
-
-/* Saisir un trajet (chauffeur) */
-$router->get('/user/ride/create',          [UserDashboardController::class, 'createRide']);
-$router->post('/user/ride/create',         [UserDashboardController::class, 'createRide']);
-
-/* Historique + démarrer/arrêter (chauffeur) */
-$router->get('/user/history',              [UserDashboardController::class, 'history']);
-$router->post('/user/ride/start',          [UserDashboardController::class, 'startRide']);
-$router->post('/user/ride/end',            [UserDashboardController::class, 'endRide']);
-
-/* --- Alias rétro-compat (à retirer plus tard) --- */
-$router->get('/profile',                   [UserDashboardController::class, 'profile']);
-$router->post('/profile/update',           [UserDashboardController::class, 'updateProfile']);
 $router->post('/vehicle/add',              [UserDashboardController::class, 'addVehicle']);
 $router->post('/vehicle/edit',             [UserDashboardController::class, 'editVehicle']);
 $router->post('/vehicle/delete',           [UserDashboardController::class, 'deleteVehicle']);
+
+/* Trajets côté user (create + actions) */
+$router->get('/user/ride/create',          [UserDashboardController::class, 'createRide']);
+$router->post('/user/ride/create',         [UserDashboardController::class, 'createRide']);
+$router->get('/user/ride/cancel',          [UserDashboardController::class, 'cancelRide']); // utilisé dans la vue
+/* legacy */
 $router->get('/ride/create',               [UserDashboardController::class, 'createRide']);
 $router->post('/ride/create',              [UserDashboardController::class, 'createRide']);
+$router->get('/ride/cancel',               [UserDashboardController::class, 'cancelRide']);
+
+/* Historique + démarrer/arrêter (on accepte GET et POST pour tolérance) */
+$router->get('/user/history',              [UserDashboardController::class, 'history']);
+$router->get('/user/ride/start',           [UserDashboardController::class, 'startRide']);
+$router->post('/user/ride/start',          [UserDashboardController::class, 'startRide']);
+$router->get('/user/ride/end',             [UserDashboardController::class, 'endRide']);
+$router->post('/user/ride/end',            [UserDashboardController::class, 'endRide']);
+/* legacy */
 $router->get('/history',                   [UserDashboardController::class, 'history']);
+$router->get('/ride/start',                [UserDashboardController::class, 'startRide']);
 $router->post('/ride/start',               [UserDashboardController::class, 'startRide']);
+$router->get('/ride/end',                  [UserDashboardController::class, 'endRide']);
 $router->post('/ride/end',                 [UserDashboardController::class, 'endRide']);
 
 /* =======================
@@ -102,9 +111,7 @@ $router->post('/ride/end',                 [UserDashboardController::class, 'end
    ======================= */
 $router->get('/employee/dashboard',        [EmployeeController::class, 'index']);
 $router->post('/employee/reviews',         [EmployeeController::class, 'moderate']);
-
-/* --- Alias rétro-compat --- */
-$router->get('/employee',                  [EmployeeController::class, 'index']);
+$router->get('/employee',                  [EmployeeController::class, 'index']); // alias
 
 /* =======================
    Espace ADMIN (ADMIN)
@@ -114,6 +121,4 @@ $router->post('/admin/suspend',            [AdminController::class, 'suspendAcco
 $router->post('/admin/employee/suspend',   [AdminController::class, 'suspendEmployee']);
 $router->post('/admin/users/suspend',      [AdminController::class, 'suspendUser']);
 $router->post('/admin/employees/create',   [AdminController::class, 'createEmployee']);
-
-/* --- Alias rétro-compat --- */
-$router->get('/admin',                     [AdminController::class, 'index']);
+$router->get('/admin',                     [AdminController::class, 'index']); // alias

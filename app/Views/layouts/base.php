@@ -2,16 +2,7 @@
 /**
  * Layout global EcoRide (MVC)
  * Emplacement : app/Views/layouts/base.php
- *
- * Variables côté contrôleur / vue enfant :
- * - $title         : string
- * - $meta          : array
- * - $pageStyles    : string
- * - $pageScripts   : string
- * - $bodyClass     : string
- * - $content       : string
  */
-
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -32,14 +23,14 @@ if (empty($_SESSION['csrf'])) {
 
 $currentUrl = $_SERVER['REQUEST_URI'] ?? '/';
 
-/* === AVATAR depuis BDD (users.avatar_path) sinon Dicebear === */
+/* Avatar */
 $avatarPath = $user['avatar_path'] ?? '';
 if ($avatarPath && $avatarPath[0] !== '/') {
     $avatarPath = '/'.$avatarPath;
 }
 $avatarUrl = $avatarPath ?: ("https://api.dicebear.com/9.x/initials/svg?seed=" . urlencode($user['nom'] ?? 'guest'));
 
-/* Gestion messages d’erreur pour le modal */
+/* Modal auth error */
 $errorMessage = '';
 if (isset($_GET['error'])) {
     switch ($_GET['error']) {
@@ -49,22 +40,20 @@ if (isset($_GET['error'])) {
     }
 }
 
-/* Récupération & purge des flash messages */
+/* Flash messages globaux */
 $flashes = $_SESSION['flash'] ?? [];
 unset($_SESSION['flash']);
 
-/* ====== Calcul de complétude du profil (bannière globale) ====== */
+/* Bannière 'profil incomplet' */
 $profileBannerHtml = '';
 try {
     if ($user && !empty($user['id'])) {
-        // rafraîchir les infos en session
         $fresh = \App\Models\User::findById((int)$user['id']);
         if ($fresh) {
             $_SESSION['user'] = $user = array_merge($user, $fresh);
         }
         $check = \App\Models\User::isProfileComplete((int)$user['id']);
         if (!$check['complete']) {
-            // ⚠️ On retire "password" de l’étiquette (et du calcul côté modèle)
             $labels = [
                 'nom'=>'nom','prenom'=>'prénom','email'=>'email','telephone'=>'téléphone',
                 'adresse'=>'adresse','avatar'=>'photo de profil',
@@ -84,9 +73,7 @@ try {
             </div>';
         }
     }
-} catch (\Throwable $e) {
-    // on ignore silencieusement en cas d'erreur
-}
+} catch (\Throwable $e) { /* ignore */ }
 ?>
 <!doctype html>
 <html lang="fr">
@@ -100,43 +87,28 @@ try {
   <?php endforeach; ?>
 <?php endif; ?>
 <meta name="description" content="EcoRide, plateforme de covoiturage écoresponsable.">
-
-<!-- Favicon -->
 <link rel="icon" type="image/png" href="/assets/img/favicon-emp.png">
-
-<!-- Bootstrap CSS -->
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-
-<!-- Font Awesome -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLbJ9r9Z9Z8iG9Qv3YmxPzQeQhV9GgQ3fGmJ2q7ZkJkF6H8l9Vq6VZ8Wc2vYx04hA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-
-<!-- Styles globaux -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
 <link rel="stylesheet" href="/assets/css/style.css">
 <link rel="stylesheet" href="/assets/css/app.css">
-<style>
-  .navbar .dropdown-menu { z-index: 2000; }
-  .avatar { width:32px; height:32px; object-fit:cover; border-radius:50%; }
-</style>
+<style>.navbar .dropdown-menu { z-index: 2000; } .avatar{width:32px;height:32px;object-fit:cover;border-radius:50%;}</style>
 <?= $pageStyles ?>
 </head>
 <body class="<?= htmlspecialchars($bodyClass) ?> bg-light d-flex flex-column min-vh-100">
-
-<!-- NAVBAR -->
 <nav class="navbar navbar-expand-lg navbar-light" style="background-color:#18a558;">
   <div class="container">
     <a class="navbar-brand d-flex align-items-center text-white" href="/">
       <img src="/assets/img/logo-emp-light.png" alt="EcoRide" style="height:36px" class="me-2">
       <span class="fw-semibold d-none d-sm-inline">EcoRide</span>
     </a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
       <span class="navbar-toggler-icon"></span>
     </button>
-
     <div class="collapse navbar-collapse" id="mainNav">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
         <li class="nav-item"><a class="nav-link text-white" href="/">Accueil</a></li>
         <li class="nav-item"><a class="nav-link text-white" href="/rides">Covoiturages</a></li>
-
         <?php if (!$user): ?>
           <li class="nav-item ms-lg-2">
             <button class="btn btn-light" data-bs-toggle="modal" data-bs-target="#authModal">Connexion</button>
@@ -148,9 +120,8 @@ try {
           <?php elseif ($role === 'EMPLOYEE'): ?>
             <li class="nav-item"><a class="nav-link text-white" href="/employee">Employé</a></li>
           <?php endif; ?>
-
           <li class="nav-item dropdown ms-lg-3">
-            <a class="nav-link dropdown-toggle d-flex align-items-center text-white" href="#" id="userMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <a class="nav-link dropdown-toggle d-flex align-items-center text-white" href="#" id="userMenu" role="button" data-bs-toggle="dropdown">
               <img src="<?= htmlspecialchars($avatarUrl) ?>" alt="avatar" class="avatar me-2">
               <span class="fw-semibold"><?= htmlspecialchars($user['nom'] ?? 'Profil') ?></span>
               <?php if ($credits !== null): ?>
@@ -184,7 +155,6 @@ try {
   </div>
 </nav>
 
-<!-- MODAL AUTH -->
 <?php if (!$user): ?>
 <div class="modal fade" id="authModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
@@ -210,8 +180,7 @@ try {
           <div class="alert alert-danger mb-3"><?= htmlspecialchars($errorMessage) ?></div>
         <?php endif; ?>
 
-        <!-- Connexion -->
-        <div class="tab-pane fade show active" id="pane-login" role="tabpanel" aria-labelledby="tab-login">
+        <div class="tab-pane fade show active" id="pane-login" role="tabpanel">
           <form method="post" action="/login" class="needs-validation" novalidate>
             <input type="hidden" name="csrf" value="<?= htmlspecialchars($_SESSION['csrf']) ?>">
             <input type="hidden" name="redirect" value="<?= htmlspecialchars($currentUrl) ?>">
@@ -229,8 +198,7 @@ try {
           </form>
         </div>
 
-        <!-- Inscription -->
-        <div class="tab-pane fade" id="pane-signup" role="tabpanel" aria-labelledby="tab-signup">
+        <div class="tab-pane fade" id="pane-signup" role="tabpanel">
           <form method="post" action="/signup" class="needs-validation" novalidate id="signupForm">
             <input type="hidden" name="csrf" value="<?= htmlspecialchars($_SESSION['csrf']) ?>">
             <input type="hidden" name="redirect" value="<?= htmlspecialchars($currentUrl) ?>">
@@ -240,41 +208,34 @@ try {
               <input type="text" class="form-control" id="snNom" name="nom" required>
               <div class="invalid-feedback">Nom requis.</div>
             </div>
-
             <div class="mb-3">
               <label class="form-label" for="snPrenom">Prénom</label>
               <input type="text" class="form-control" id="snPrenom" name="prenom">
             </div>
-
             <div class="mb-3">
               <label class="form-label" for="snAdresse">Adresse</label>
               <input type="text" class="form-control" id="snAdresse" name="adresse">
             </div>
-
             <div class="mb-3">
               <label class="form-label" for="snTel">Téléphone</label>
               <input type="tel" class="form-control" id="snTel" name="telephone" placeholder="06 12 34 56 78">
               <div class="form-text">Optionnel. Chiffres et espaces uniquement.</div>
             </div>
-
             <div class="mb-3">
               <label class="form-label" for="snEmail">Adresse email</label>
               <input type="email" class="form-control" id="snEmail" name="email" required>
               <div class="invalid-feedback">Merci de saisir un email valide.</div>
             </div>
-
             <div class="mb-3">
               <label class="form-label" for="snPass">Mot de passe</label>
               <input type="password" class="form-control" id="snPass" name="password" minlength="8" required>
               <div class="invalid-feedback">Minimum 8 caractères.</div>
             </div>
-
             <div class="mb-3">
               <label class="form-label" for="snPass2">Confirmer le mot de passe</label>
               <input type="password" class="form-control" id="snPass2" name="password_confirm" minlength="8" required>
               <div class="invalid-feedback">Les mots de passe doivent correspondre.</div>
             </div>
-
             <button type="submit" class="btn btn-primary w-100">S'inscrire</button>
           </form>
         </div>
@@ -284,7 +245,6 @@ try {
 </div>
 <?php endif; ?>
 
-<!-- Bandeau EcoRide -->
 <div class="bg-success-subtle border-bottom border-success py-2">
   <div class="container d-flex align-items-center gap-3">
     <i class="fas fa-leaf text-success"></i>
@@ -293,10 +253,8 @@ try {
   </div>
 </div>
 
-<!-- Bannière "profil incomplet" -->
 <?= $profileBannerHtml ?>
 
-<!-- FLASH MESSAGES -->
 <div class="container mt-3">
 <?php if (!empty($flashes)): ?>
   <div class="mb-3">
@@ -320,7 +278,6 @@ try {
 <?php endif; ?>
 </div>
 
-<!-- CONTENU DE PAGE -->
 <main class="flex-grow-1 py-4">
   <div class="container">
     <div class="row justify-content-center">
@@ -331,7 +288,6 @@ try {
   </div>
 </main>
 
-<!-- FOOTER -->
 <footer class="mt-auto border-top bg-white">
   <div class="container py-3 d-flex flex-column flex-sm-row justify-content-between align-items-center">
     <div class="small text-muted">
@@ -347,18 +303,14 @@ try {
   </div>
 </footer>
 
-<!-- JS Bootstrap -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-
-<!-- Validation Bootstrap + vérif mot de passe -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 <script>
 (() => {
   'use strict';
   document.querySelectorAll('.needs-validation').forEach(form => {
     form.addEventListener('submit', e => {
       if (!form.checkValidity()) {
-        e.preventDefault();
-        e.stopPropagation();
+        e.preventDefault(); e.stopPropagation();
       }
       form.classList.add('was-validated');
     }, false);
@@ -367,19 +319,13 @@ try {
   if (f) {
     const p1 = document.getElementById('snPass');
     const p2 = document.getElementById('snPass2');
-    const check = () => {
-      p2.setCustomValidity(p1.value && p2.value && p1.value !== p2.value ? 'Mismatch' : '');
-    };
+    const check = () => { p2.setCustomValidity(p1.value && p2.value && p1.value !== p2.value ? 'Mismatch' : ''); };
     p1 && p1.addEventListener('input', check);
     p2 && p2.addEventListener('input', check);
   }
 })();
 </script>
-
-<!-- JS globaux -->
 <script src="/assets/js/app.js"></script>
-
-<!-- Scripts spécifiques à la page -->
 <?= $pageScripts ?>
 </body>
 </html>

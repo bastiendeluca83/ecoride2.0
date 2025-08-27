@@ -6,7 +6,7 @@ function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
 $pref = function($k, $default = 0) use ($prefs) {
   $v = $prefs[$k] ?? $default;
-  return (string)$v === '1' ? '1' : '0';
+  return (string)$v;
 };
 
 /** Calcule l'âge (années pleines) à partir d'une date YYYY-MM-DD */
@@ -25,12 +25,14 @@ function age_years(?string $dateNaissance): ?int {
 $dob = $user['date_naissance'] ?? null;
 $age = age_years($dob);
 ?>
+
 <div class="container my-4">
   <h1 class="h3 mb-3"><?= e($title ?? 'Modifier mon profil') ?></h1>
 
   <?php if (!empty($_SESSION['flash_error'])): ?>
     <div class="alert alert-danger"><?= e($_SESSION['flash_error']); unset($_SESSION['flash_error']); ?></div>
   <?php endif; ?>
+
   <?php if (!empty($_SESSION['flash_success'])): ?>
     <div class="alert alert-success"><?= e($_SESSION['flash_success']); unset($_SESSION['flash_success']); ?></div>
   <?php endif; ?>
@@ -103,41 +105,41 @@ $age = age_years($dob);
         <div class="col-md-4">
           <label class="form-label">Fumeur</label>
           <select name="pref_smoking" class="form-select">
-            <option value="0" <?= $pref('smoking')==='0'?'selected':''; ?>>N/A</option>
-            <option value="0" <?= $pref('smoking')==='1'?'selected':''; ?>>Non</option>
-            <option value="1" <?= $pref('smoking')==='2'?'selected':''; ?>>Oui</option>
+            <option value="0" <?= $pref('smoker','0')==='0'?'selected':''; ?>>N/A</option>
+            <option value="1" <?= $pref('smoker','0')==='1'?'selected':''; ?>>Non</option>
+            <option value="2" <?= $pref('smoker','0')==='2'?'selected':''; ?>>Oui</option>
           </select>
         </div>
         <div class="col-md-4">
           <label class="form-label">Animaux acceptés</label>
           <select name="pref_pets" class="form-select">
-            <option value="0" <?= $pref('pets')==='0'?'selected':''; ?>>N/A</option>
-            <option value="0" <?= $pref('pets')==='1'?'selected':''; ?>>Non</option>
-            <option value="1" <?= $pref('pets')==='2'?'selected':''; ?>>Oui</option>
+            <option value="0" <?= $pref('animals','0')==='0'?'selected':''; ?>>N/A</option>
+            <option value="1" <?= $pref('animals','0')==='1'?'selected':''; ?>>Non</option>
+            <option value="2" <?= $pref('animals','0')==='2'?'selected':''; ?>>Oui</option>
           </select>
         </div>
         <div class="col-md-4">
           <label class="form-label">Musique</label>
           <select name="pref_music" class="form-select">
-            <option value="0" <?= $pref('music')==='0'?'selected':''; ?>>N/A</option>
-            <option value="0" <?= $pref('music')==='1'?'selected':''; ?>>Plutôt non</option>
-            <option value="1" <?= $pref('music')==='2'?'selected':''; ?>>Avec plaisir</option>
+            <option value="0" <?= $pref('music','0')==='0'?'selected':''; ?>>N/A</option>
+            <option value="1" <?= $pref('music','1')==='1'?'selected':''; ?>>Plutôt non</option>
+            <option value="2" <?= $pref('music','1')==='2'?'selected':''; ?>>Avec plaisir</option>
           </select>
         </div>
         <div class="col-md-4">
           <label class="form-label">Discussion</label>
           <select name="pref_chat" class="form-select">
-            <option value="0" <?= $pref('chat')==='0'?'selected':''; ?>>N/A</option>
-            <option value="0" <?= $pref('chat')==='1'?'selected':''; ?>>Discret</option>
-            <option value="1" <?= $pref('chat')==='2'?'selected':''; ?>>Bavard</option>
+            <option value="0" <?= $pref('chatty','0')==='0'?'selected':''; ?>>N/A</option>
+            <option value="1" <?= $pref('chatty','1')==='1'?'selected':''; ?>>Discret</option>
+            <option value="2" <?= $pref('chatty','1')==='2'?'selected':''; ?>>Bavard</option>
           </select>
         </div>
         <div class="col-md-4">
           <label class="form-label">Climatisation</label>
           <select name="pref_ac" class="form-select">
-            <option value="0" <?= $pref('ac')==='0'?'selected':''; ?>>N/A</option>
-            <option value="1" <?= $pref('ac')==='1'?'selected':''; ?>>Oui</option>
-            <option value="0" <?= $pref('ac')==='2'?'selected':''; ?>>Peu/éteinte</option>
+            <option value="0" <?= $pref('ac','0')==='0'?'selected':''; ?>>N/A</option>
+            <option value="1" <?= $pref('ac','1')==='1'?'selected':''; ?>>Oui</option>
+            <option value="2" <?= $pref('ac','1')==='2'?'selected':''; ?>>Peu/éteinte</option>
           </select>
         </div>
       </div>

@@ -24,7 +24,6 @@ final class UserPreferences
         ];
     }
 
-    /** true si une ligne existe pour l'utilisateur */
     public static function exists(int $userId): bool {
         $st = self::pdo()->prepare("SELECT 1 FROM user_preferences WHERE user_id=:u LIMIT 1");
         $st->execute([':u'=>$userId]);
@@ -52,4 +51,10 @@ final class UserPreferences
             ':cp'=>($d['custom_prefs'] ?? null),
         ]);
     }
+
+    /* Aliases conviviaux */
+    public static function save(int $userId, array $d): bool { return self::upsert($userId, $d); }
+    public static function saveForUser(int $userId, array $d): bool { return self::upsert($userId, $d); }
+    public static function set(int $userId, array $d): bool { return self::upsert($userId, $d); }
+    public static function updateForUser(int $userId, array $d): bool { return self::upsert($userId, $d); }
 }

@@ -1,4 +1,4 @@
-<?php  
+<?php
 declare(strict_types=1);
 
 namespace App\Controllers;
@@ -55,7 +55,6 @@ final class UserDashboardController extends BaseController
             }
         }
 
-        // <- vues déplacées dans pages/
         $this->render('pages/profile_edit', [
             'title' => 'Modifier mon profil',
             'user'  => $user,
@@ -87,7 +86,7 @@ final class UserDashboardController extends BaseController
             'first_name'  => $_POST['first_name'] ?? null,
             'phone'       => $_POST['phone']      ?? null,
             'address'     => $_POST['address']    ?? null,
-            'date_naissance' => $_POST['date_naissance'] ?? null, // [ADD date_naissance]
+            'date_naissance' => $_POST['date_naissance'] ?? null,
         ];
         $data = [];
         foreach ($payload as $k=>$v) {
@@ -110,13 +109,11 @@ final class UserDashboardController extends BaseController
                     $dest = $baseDir . '/' . $filename;
                     if (@move_uploaded_file($f['tmp_name'], $dest)) {
                         $relPath = 'uploads/avatars/' . $filename;
-                        // Tente la méthode dédiée si elle existe, sinon via updateProfile
                         if (method_exists(User::class, 'updateAvatar')) {
                             $avatarUpdated = (bool)User::updateAvatar($id, $relPath);
                         } else {
                             $avatarUpdated = (bool)User::updateProfile($id, ['avatar_path'=>$relPath]);
                         }
-                        // Pour rafraîchir l'affichage éventuel
                         if (!empty($_SESSION['user'])) {
                             $_SESSION['user']['avatar_path'] = $relPath;
                         }
@@ -132,31 +129,29 @@ final class UserDashboardController extends BaseController
         }
         /* ------------------------------------------------ */
 
-        /* ---------- Préférences (fumeur/animaux/musique/discussion/clim) ---------- */
+        /* ---------- Préférences ---------- */
         $prefsUpdated = false;
         $prefs = [
-            'smoking'  => isset($_POST['pref_smoking'])  ? (int)!!$_POST['pref_smoking']  : null,
-            'pets'     => isset($_POST['pref_pets'])     ? (int)!!$_POST['pref_pets']     : null,
-            'music'    => isset($_POST['pref_music'])    ? (int)!!$_POST['pref_music']    : null,
-            'chat'     => isset($_POST['pref_chat'])     ? (int)!!$_POST['pref_chat']     : null,
-            'ac'       => isset($_POST['pref_ac'])       ? (int)!!$_POST['pref_ac']       : null,
+            'smoker'  => isset($_POST['pref_smoking']) ? (int)$_POST['pref_smoking'] : null,
+            'animals' => isset($_POST['pref_pets'])    ? (int)$_POST['pref_pets']    : null,
+            'music'   => isset($_POST['pref_music'])   ? (int)$_POST['pref_music']   : null,
+            'chatty'  => isset($_POST['pref_chat'])    ? (int)$_POST['pref_chat']    : null,
+            'ac'      => isset($_POST['pref_ac'])      ? (int)$_POST['pref_ac']      : null,
         ];
-        // Nettoie les null (si le formulaire ne les a pas envoyés)
         $toSave = [];
         foreach ($prefs as $k=>$v) if ($v !== null) $toSave[$k] = $v;
 
         if ($id > 0 && $toSave) {
-            // Cherche une méthode probable dans le modèle
-            foreach (['save','upsertForUser','set','updateForUser','saveForUser'] as $m) {
+            foreach (['upsert','save','set','updateForUser','saveForUser'] as $m) {
                 if (method_exists(UserPreferences::class, $m)) {
                     $prefsUpdated = (bool)UserPreferences::$m($id, $toSave);
                     break;
                 }
             }
         }
-        /* ------------------------------------------------------------------------- */
+        /* -------------------------------- */
 
-        /* ---------- Changement de mot de passe (optionnel) ---------- */
+        /* ---------- Mot de passe (optionnel) ---------- */
         $pwChanged = false;
         $newPw  = trim((string)($_POST['new_password']     ?? ''));
         $confPw = trim((string)($_POST['confirm_password'] ?? ''));
@@ -176,16 +171,15 @@ final class UserDashboardController extends BaseController
             }
             $pwChanged = true;
         }
-        /* ----------------------------------------------------------- */
+        /* ------------------------------------------------ */
 
         // Mise à jour du profil (si champs fournis)
         $profileUpdated = $id>0 && $data ? User::updateProfile($id, $data) : false;
 
-        // RAF session (ex: email/pseudo)
+        // RAF session
         $fresh = $id ? User::findById($id) : null;
         if ($fresh) { $_SESSION['user'] = array_merge($_SESSION['user'] ?? [], $fresh); }
 
-        // Messages combinés
         $parts = [];
         if ($profileUpdated) $parts[] = 'profil';
         if ($pwChanged)      $parts[] = 'mot de passe';
@@ -203,7 +197,7 @@ final class UserDashboardController extends BaseController
     }
 
     /* =========================
-       ALIAS/ADAPTATEURS AJOUTÉS
+       ALIAS/ADAPTATEURS
        ========================= */
     public function editProfile(): void { $this->editForm(); }
     public function updateProfile(): void { $this->update(); }
@@ -214,7 +208,6 @@ final class UserDashboardController extends BaseController
        VÉHICULES
        ========================= */
 
-    /** GET /user/vehicle (ajout) ou /user/vehicle/edit?id=... (édition) */
     public function vehicleForm(): void
     {
         Security::ensure(['USER']);
@@ -236,7 +229,6 @@ final class UserDashboardController extends BaseController
         ]);
     }
 
-    /** POST /user/vehicle/add */
     public function addVehicle(): void
     {
         Security::ensure(['USER']);
@@ -266,7 +258,6 @@ final class UserDashboardController extends BaseController
         header('Location: ' . BASE_URL . 'user/dashboard'); exit;
     }
 
-    /** POST /user/vehicle/edit */
     public function editVehicle(): void
     {
         Security::ensure(['USER']);
@@ -298,7 +289,6 @@ final class UserDashboardController extends BaseController
         header('Location: ' . BASE_URL . 'user/dashboard'); exit;
     }
 
-    /** POST /user/vehicle/delete */
     public function deleteVehicle(): void
     {
         Security::ensure(['USER']);
@@ -316,21 +306,19 @@ final class UserDashboardController extends BaseController
     }
 
     /* =========================
-       Trajet : redirection conditionnelle + création
+       Trajet
        ========================= */
     public function createRide(): void
     {
         Security::ensure(['USER']);
         $uid = (int)($_SESSION['user']['id'] ?? 0);
 
-        // 1) Doit avoir au moins un véhicule, sinon → page ajout véhicule
         $vehicles = $uid ? Vehicle::forUser($uid) : [];
         if (empty($vehicles)) {
             $_SESSION['flash_error'] = "Ajoutez d'abord un véhicule pour publier un trajet.";
             header('Location: ' . BASE_URL . 'user/vehicle'); exit;
         }
 
-        // 2) POST → création via modèle Ride
         if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             if (!\App\Security\Security::checkCsrf($_POST['csrf'] ?? null)) {
                 $_SESSION['flash_error'] = 'Session expirée, veuillez réessayer.';
@@ -373,14 +361,13 @@ final class UserDashboardController extends BaseController
             }
         }
 
-        // 3) GET → affiche la page de création
         $this->render('pages/create_ride', [
             'title'    => 'Publier un trajet',
             'vehicles' => $vehicles
         ]);
     }
 
-    /* Legacy alias — conservés mais non utilisés dans le flux actuel */
+    /* Legacy alias — conservés */
     public function history(): void       { Security::ensure(['USER']); $this->render('dashboard/history',['title'=>'Historique']); }
     public function startRide(): void     { Security::ensure(['USER']); header('Location: ' . BASE_URL . 'user/dashboard'); }
     public function endRide(): void       { Security::ensure(['USER']); header('Location: ' . BASE_URL . 'user/dashboard'); }

@@ -10,24 +10,20 @@ class User
        Helpers DB
        ========================= */
     private static function pdo(): \PDO { return Sql::pdo(); }
-
     private static function one(string $sql, array $p = []): ?array {
-        $st = self::pdo()->prepare($sql);
-        $st->execute($p);
-        $row = $st->fetch(PDO::FETCH_ASSOC);
-        return $row ?: null;
+        $st = self::pdo()->prepare($sql); $st->execute($p);
+        $row = $st->fetch(PDO::FETCH_ASSOC); return $row ?: null;
     }
-
     private static function all(string $sql, array $p = []): array {
-        $st = self::pdo()->prepare($sql);
-        $st->execute($p);
+        $st = self::pdo()->prepare($sql); $st->execute($p);
         return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
     /* =========================
-       Détection schéma FR/EN
+       Détection schéma FR/EN + colonne date
        ========================= */
     private static ?bool $useEnglishCols = null;
+    private static ?string $dateCol = null;
 
     private static function useEnglish(): bool {
         if (self::$useEnglishCols !== null) return self::$useEnglishCols;
@@ -35,6 +31,22 @@ class User
         $st->execute();
         self::$useEnglishCols = (bool)$st->fetch(PDO::FETCH_ASSOC);
         return self::$useEnglishCols;
+    }
+
+    private static function colExists(string $col): bool {
+        $st = self::pdo()->prepare("SHOW COLUMNS FROM users LIKE :c");
+        $st->execute([':c'=>$col]);
+        return (bool)$st->fetch(PDO::FETCH_ASSOC);
+    }
+
+    /** Retourne le nom réel de la colonne date en BDD */
+    private static function dateColumn(): ?string {
+        if (self::$dateCol !== null) return self::$dateCol;
+        foreach (['date_naissance','date_of_birth','date_of_birth'] as $c) { // on couvre variantes/typos
+            if (self::colExists($c)) { self::$dateCol = $c; return $c; }
+        }
+        self::$dateCol = null; // aucune colonne date
+        return null;
     }
 
     /* =========================
@@ -88,24 +100,26 @@ class User
     }
 
     /* =========================
-       Profil (FR/EN mapping)
+       Profil (FR/EN mapping) — compat date
        ========================= */
     public static function findById(int $id): ?array {
+        $dateCol = self::dateColumn();
+        $dateSel = $dateCol ? "$dateCol AS date_naissance" : "NULL AS date_naissance";
+
         if (self::useEnglish()) {
-            // Schéma EN (avec alias FR attendus dans le reste de l’app)
-            $sql = 'SELECT id,
+            $sql = "SELECT id,
                            last_name  AS nom,
                            first_name AS prenom,
                            email,
                            phone      AS telephone,
                            address    AS adresse,
                            credits, role, bio, avatar_path,
-                           date_naissance            -- [ADD date_naissance]
-                    FROM users WHERE id = :id';
+                           $dateSel
+                    FROM users WHERE id = :id";
         } else {
-            // Schéma FR
-            $sql = 'SELECT id, nom, prenom, email, telephone, adresse, credits, role, bio, avatar_path, date_naissance -- [ADD date_naissance]
-                    FROM users WHERE id = :id';
+            $sql = "SELECT id, nom, prenom, email, telephone, adresse, credits, role, bio, avatar_path,
+                           $dateSel
+                    FROM users WHERE id = :id";
         }
         try {
             return self::one($sql, [':id'=>$id]);
@@ -117,24 +131,27 @@ class User
 
     /**
      * $data accepte FR (nom, prenom, telephone, adresse, email, bio, date_naissance)
-     * et/ou EN (last_name, first_name, phone, address, email, bio, date_naissance)
-     * + on autorise "avatar_path".
+     * et/ou EN (last_name, first_name, phone, address, email, bio, date_of_birth)
+     * + "avatar_path".
      */
     public static function updateProfile(int $id, array $data): bool {
         $useEN = self::useEnglish();
+        $dateCol = self::dateColumn() ?? 'date_naissance'; // fallback nominal
 
         $map = $useEN
             ? [
                 'nom'=>'last_name', 'prenom'=>'first_name', 'telephone'=>'phone', 'adresse'=>'address',
                 'email'=>'email', 'bio'=>'bio', 'avatar_path'=>'avatar_path',
                 'last_name'=>'last_name','first_name'=>'first_name','phone'=>'phone','address'=>'address',
-                'date_naissance' => 'date_naissance', // [ADD date_naissance]
+                'date_naissance' => $dateCol,
+                'date_of_birth'  => $dateCol,
               ]
             : [
                 'nom'=>'nom', 'prenom'=>'prenom', 'telephone'=>'telephone', 'adresse'=>'adresse',
                 'email'=>'email', 'bio'=>'bio', 'avatar_path'=>'avatar_path',
                 'last_name'=>'nom','first_name'=>'prenom','phone'=>'telephone','address'=>'adresse',
-                'date_naissance' => 'date_naissance', // [ADD date_naissance]
+                'date_naissance' => $dateCol,
+                'date_of_birth'  => $dateCol,
               ];
 
         $set = [];
@@ -168,7 +185,6 @@ class User
         }
     }
 
-    /** Avatar */
     public static function updateAvatar(int $id, string $path): bool {
         try {
             return self::pdo()->prepare('UPDATE users SET avatar_path = :a WHERE id = :id')
@@ -182,8 +198,6 @@ class User
     /* =========================
        Complétude du profil
        ========================= */
-
-    /** true si un hash de mot de passe existe */
     public static function passwordIsSet(int $id): bool {
         $st = self::pdo()->prepare('SELECT password_hash FROM users WHERE id=:id');
         $st->execute([':id'=>$id]);
@@ -191,33 +205,20 @@ class User
         return $hash !== '';
     }
 
-    /**
-     * Retourne ['complete'=>bool, 'missing'=>string[]]
-     * Champs obligatoires: nom, prenom, email, telephone, adresse, avatar, preferences.
-     */
     public static function isProfileComplete(int $id): array {
         $u = self::findById($id) ?? [];
         $missing = [];
 
         foreach (['nom','prenom','email','telephone','adresse'] as $f) {
-            if (empty(trim((string)($u[$f] ?? '')))) {
-                $missing[] = $f;
-            }
+            if (empty(trim((string)($u[$f] ?? '')))) { $missing[] = $f; }
         }
+        if (empty($u['avatar_path'])) { $missing[] = 'avatar'; }
 
-        if (empty($u['avatar_path'])) {
-            $missing[] = 'avatar';
-        }
-
-        // préférences (on exige qu'une ligne existe)
         try {
-            if (!\App\Models\UserPreferences::exists($id)) {
-                $missing[] = 'preferences';
-            }
+            if (!\App\Models\UserPreferences::exists($id)) { $missing[] = 'preferences'; }
         } catch (\Throwable $e) {
             $missing[] = 'preferences';
         }
-
         return ['complete' => count($missing) === 0, 'missing' => $missing];
     }
 }

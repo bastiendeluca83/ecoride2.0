@@ -3,8 +3,6 @@
 /** @var array $reservations */
 /** @var array $rides */
 /** @var array $vehicles */
-/** @var bool  $profile_incomplete */
-/** @var array $missing_fields */
 if (!function_exists('e')) {
   function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 }
@@ -24,29 +22,13 @@ if (!function_exists('age_years')) {
   }
 }
 
-/* Prépare affichage date de naissance + âge (toujours basé BDD) */
 $dobRaw = $user['date_naissance'] ?? null;
 $dobTxt = $dobRaw ? date('d/m/Y', strtotime($dobRaw)) : null;
-/* On priorise un éventuel $user['age_years'] fourni par le contrôleur, sinon on recalcule ici */
-$age = isset($user['age_years']) && $user['age_years'] !== null ? (int)$user['age_years'] : age_years($dobRaw);
+$age = age_years($dobRaw);
 ?>
+
 <div class="container-fluid px-4 py-5" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); min-height: 100vh;">
   <div class="container">
-
-    <?php if (!empty($profile_incomplete)): ?>
-      <div class="alert alert-warning alert-dismissible fade show d-flex align-items-center justify-content-between mb-4" role="alert" style="border-left:4px solid #ffc107;">
-        <div class="me-3">
-          <i class="fas fa-exclamation-triangle me-2"></i>
-          <a href="<?= BASE_URL ?>profil/edit" class="fw-semibold text-decoration-none text-reset">
-            Profil incomplet — cliquez ici pour le compléter
-          </a>
-          <?php if (!empty($missing_fields)): ?>
-            <small class="text-muted ms-2">(champs manquants : <?= e(implode(', ', $missing_fields)) ?>)</small>
-          <?php endif; ?>
-        </div>
-        <a class="btn-close" aria-label="Fermer" href="<?= BASE_URL ?>user/dashboard?dismiss_profile_notice=1"></a>
-      </div>
-    <?php endif; ?>
 
     <div class="d-flex align-items-center justify-content-between mb-5">
       <div>
@@ -92,7 +74,7 @@ $age = isset($user['age_years']) && $user['age_years'] !== null ? (int)$user['ag
       </div>
     </div>
 
-    <!-- Profil + Véhicule (si présent) -->
+    <!-- Profil + Véhicule -->
     <div class="row justify-content-center mb-4">
       <div class="col-lg-6">
         <div class="card border-0 shadow rounded-3 overflow-hidden">
@@ -169,7 +151,6 @@ $age = isset($user['age_years']) && $user['age_years'] !== null ? (int)$user['ag
           <div class="card-body p-3">
             <?php foreach ($vehicles as $v): ?>
               <div class="border rounded-3 p-3 mb-2 bg-white">
-                <!-- Infos véhicule -->
                 <div>
                   <div class="fw-bold mb-1"><?= e($v['brand'] ?? '') ?> <?= e($v['model'] ?? '') ?> • <?= e($v['color'] ?? '') ?></div>
                   <div class="small text-muted">
@@ -178,11 +159,8 @@ $age = isset($user['age_years']) && $user['age_years'] !== null ? (int)$user['ag
                     <i class="fas fa-chair me-1 ms-2"></i><?= (int)($v['seats'] ?? 0) ?> place<?= ((int)($v['seats'] ?? 0) > 1 ? 's' : '') ?>
                   </div>
                 </div>
-
-                <!-- Actions en bas -->
                 <div class="d-flex justify-content-end gap-2 pt-2 mt-3 border-top">
-                  <a class="btn btn-outline-primary btn-sm"
-                     href="<?= BASE_URL ?>user/vehicle/edit?id=<?= (int)$v['id'] ?>">
+                  <a class="btn btn-outline-primary btn-sm" href="<?= BASE_URL ?>user/vehicle/edit?id=<?= (int)$v['id'] ?>">
                     <i class="fas fa-edit me-1"></i>Modifier
                   </a>
                   <form method="post" action="<?= BASE_URL ?>user/vehicle/delete"
@@ -196,7 +174,6 @@ $age = isset($user['age_years']) && $user['age_years'] !== null ? (int)$user['ag
                 </div>
               </div>
             <?php endforeach; ?>
-
             <a href="<?= BASE_URL ?>user/vehicle" class="btn btn-success w-100 mt-2">
               <i class="fas fa-plus me-2"></i>Ajouter un véhicule
             </a>
@@ -341,5 +318,6 @@ $age = isset($user['age_years']) && $user['age_years'] !== null ? (int)$user['ag
         </div>
       </div>
     </div>
+
   </div>
 </div>
