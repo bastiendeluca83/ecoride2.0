@@ -76,6 +76,14 @@ final class AdminController extends BaseController
     /** POST /admin/users/unsuspend */
     public function unsuspend(): void { $this->setSuspended(false); }
 
+    /* --------- NOUVEAUX alias pour coller aux routes existantes --------- */
+    /** Route config: /admin/users/suspend -> suspendUser */
+    public function suspendUser(): void { $this->setSuspended(true); }
+
+    /** Route config: /admin/users/unsuspend -> unsuspendUser */
+    public function unsuspendUser(): void { $this->setSuspended(false); }
+    /* -------------------------------------------------------------------- */
+
     /* --------- Implémentation commune --------- */
     private function setSuspended(bool $suspend): void
     {

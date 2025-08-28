@@ -362,7 +362,7 @@ final class UserDashboardController extends BaseController
 
             $ok = false;
 
-            // 1) Si tu as une méthode createForDriver(array)
+            // 1)  méthode createForDriver(array)
             if (method_exists(Ride::class, 'createForDriver')) {
                 $ok = (bool)Ride::createForDriver($uid, $vehicleId, $payload);
             } else {

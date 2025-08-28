@@ -1,7 +1,7 @@
 <?php
 // ============================================================
 // FILE: app/models/AdminStats.php
-// (Statistiques pour l'admin: SQL + optionnel Mongo)
+// (Statistiques pour l'admin)
 // ============================================================
 namespace App\Models;
 
@@ -20,34 +20,50 @@ class AdminStats extends BaseModels
         return self::all($sql, [':a'=>$fromDate, ':b'=>$toDate]);
     }
 
-    /** Crédits gagnés par la plateforme par jour (SQL) via réservations confirmées */
-    public static function platformCreditsPerDay(string $fromDate, string $toDate, int $platformFee=2): array
-    {
-        $sql = "SELECT DATE(r.date_start) AS jour, (COUNT(res.id)*:fee) AS credits
-                FROM rides r
-                JOIN reservations res ON res.ride_id=r.id AND res.confirmed=1
-                WHERE DATE(r.date_start) BETWEEN :a AND :b
-                GROUP BY DATE(r.date_start)
-                ORDER BY jour";
+    /**
+     * Crédits plateforme / jour via **bookings** confirmées.
+     * On compte 2 crédits par réservation confirmée.
+     * (Compat majuscules/minuscules sur status).
+     */
+    public static function platformCreditsPerDay(
+        string $fromDate,
+        string $toDate,
+        int $platformFee = 2
+    ): array {
+        $sql = "
+            SELECT
+                DATE(b.created_at) AS jour,
+                (COUNT(b.id) * :fee) AS credits
+            FROM bookings b
+            WHERE DATE(b.created_at) BETWEEN :a AND :b
+              AND (
+                    b.status IN ('CONFIRMED','PAID','APPROVED')
+                 OR b.status IN ('confirmed','paid','approved')
+              )
+            GROUP BY DATE(b.created_at)
+            ORDER BY jour ASC
+        ";
         return self::all($sql, [':a'=>$fromDate, ':b'=>$toDate, ':fee'=>$platformFee]);
     }
 
-    /** Total crédits gagnés (SQL) */
-    public static function totalCreditsEarned(int $platformFee=2): int
+    /** Total crédits gagnés (2 par réservation confirmée) */
+    public static function totalCreditsEarned(int $platformFee = 2): int
     {
-        $row = self::one(
-            "SELECT COUNT(*)* :fee AS total
-             FROM reservations
-             WHERE confirmed=1",
-            [':fee'=>$platformFee]
-        );
+        $row = self::one("
+            SELECT COUNT(*) * :fee AS total
+            FROM bookings b
+            WHERE (
+                    b.status IN ('CONFIRMED','PAID','APPROVED')
+                 OR b.status IN ('confirmed','paid','approved')
+            )
+        ", [':fee'=>$platformFee]);
         return (int)($row['total'] ?? 0);
     }
 
     /**
-     * NOUVEAU — Historique détaillé: crédits / jour + liste des ride_id du jour.
-     * - Concatène les id de trajets qui ont généré des crédits ce jour-là.
-     * - Ne touche pas aux méthodes existantes.
+     * Historique détaillé: crédits / jour + liste des ride_id du jour.
+     * Source: bookings (création/confirmation d'une résa) -> 2 crédits/booking.
+     * La date d'agrégat = DATE(bookings.created_at)
      */
     public static function platformCreditsHistoryDetailed(
         string $fromDate,
@@ -56,15 +72,16 @@ class AdminStats extends BaseModels
     ): array {
         $sql = "
             SELECT
-                DATE(r.date_start) AS jour,
-                (COUNT(res.id) * :fee)       AS credits,
-                GROUP_CONCAT(DISTINCT r.id ORDER BY r.id SEPARATOR ',') AS ride_ids
-            FROM rides r
-            JOIN reservations res
-              ON res.ride_id = r.id
-             AND res.confirmed = 1
-            WHERE DATE(r.date_start) BETWEEN :a AND :b
-            GROUP BY DATE(r.date_start)
+                DATE(b.created_at) AS jour,
+                (COUNT(b.id) * :fee) AS credits,
+                GROUP_CONCAT(DISTINCT b.ride_id ORDER BY b.ride_id SEPARATOR ',') AS ride_ids
+            FROM bookings b
+            WHERE DATE(b.created_at) BETWEEN :a AND :b
+              AND (
+                    b.status IN ('CONFIRMED','PAID','APPROVED')
+                 OR b.status IN ('confirmed','paid','approved')
+              )
+            GROUP BY DATE(b.created_at)
             ORDER BY jour ASC
         ";
         return self::all($sql, [':a'=>$fromDate, ':b'=>$toDate, ':fee'=>$platformFee]);

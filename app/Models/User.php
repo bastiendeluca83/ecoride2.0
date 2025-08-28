@@ -225,7 +225,80 @@ class User
     }
 
     /* =========================
-       AJOUT : recharge auto si >= intervalle
+       AJOUTS pour AdminController
+       ========================= */
+
+    /** Crée un employé (rôle EMPLOYEE, 0 crédits). */
+    public static function createEmployee(string $email, string $password, ?string $nom = null, ?string $prenom = null): int
+    {
+        $pdo = self::pdo();
+
+        // Unicité email
+        $st = $pdo->prepare("SELECT id FROM users WHERE email = :e LIMIT 1");
+        $st->execute([':e' => $email]);
+        if ($st->fetchColumn()) {
+            throw new \RuntimeException('email_exists');
+        }
+
+        $hash = password_hash($password, PASSWORD_DEFAULT);
+
+        // Colonnes/valeurs dynamiques selon le schéma
+        $cols = ['email'];
+        $vals = [':email' => $email];
+
+        if (self::colExists('password_hash')) { $cols[] = 'password_hash'; $vals[':pwd'] = $hash; }
+        elseif (self::colExists('password')) {  $cols[] = 'password';      $vals[':pwd'] = $hash; }
+
+        if (self::colExists('role'))    { $cols[] = 'role';    $vals[':role']    = 'EMPLOYEE'; }
+        if (self::colExists('credits')) { $cols[] = 'credits'; $vals[':credits'] = 0; }
+
+        if (self::colExists('is_suspended')) { $cols[] = 'is_suspended'; $vals[':susp'] = 0; }
+        elseif (self::colExists('suspended')) { $cols[] = 'suspended';   $vals[':susp'] = 0; }
+
+        // nom/prenom compatibles FR/EN
+        if ($nom !== null) {
+            if (self::colExists('nom'))         { $cols[] = 'nom';        $vals[':nom'] = $nom; }
+            elseif (self::colExists('last_name')) { $cols[] = 'last_name'; $vals[':nom'] = $nom; }
+            elseif (self::colExists('name'))      { $cols[] = 'name';      $vals[':nom'] = $nom; }
+        }
+        if ($prenom !== null) {
+            if (self::colExists('prenom'))        { $cols[] = 'prenom';     $vals[':pre'] = $prenom; }
+            elseif (self::colExists('first_name')) { $cols[] = 'first_name'; $vals[':pre'] = $prenom; }
+        }
+
+        if (self::colExists('created_at')) { $cols[] = 'created_at'; $vals[':created'] = (new \DateTimeImmutable())->format('Y-m-d H:i:s'); }
+
+        // Build INSERT
+        $placeholders = [];
+        foreach ($vals as $k => $_) { $placeholders[] = $k; }
+
+        $sql = "INSERT INTO users (".implode(',', $cols).") VALUES (".implode(',', $placeholders).")";
+        $st  = $pdo->prepare($sql);
+        $st->execute($vals);
+
+        return (int)$pdo->lastInsertId();
+    }
+
+    /** (Dé)suspends un compte utilisateur via la colonne dispo (is_suspended/suspended). */
+    public static function setSuspended(int $userId, bool $suspend): bool
+    {
+        $pdo = self::pdo();
+        $col = null;
+        if (self::colExists('is_suspended')) { $col = 'is_suspended'; }
+        elseif (self::colExists('suspended')) { $col = 'suspended'; }
+
+        if ($col === null) {
+            // Pas de colonne de suspension : on ne casse rien.
+            return true;
+        }
+
+        $sql = "UPDATE users SET {$col} = :v WHERE id = :id";
+        $st  = $pdo->prepare($sql);
+        return $st->execute([':v' => ($suspend ? 1 : 0), ':id' => $userId]);
+    }
+
+    /* =========================
+       Recharge auto si >= intervalle
        ========================= */
     public static function topUpCreditsIfDue(int $userId, int $amount, string $intervalSpec = 'P14D'): bool {
         try {

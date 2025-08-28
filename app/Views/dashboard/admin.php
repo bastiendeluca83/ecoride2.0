@@ -12,7 +12,7 @@ if (!function_exists('e')) { function e($s){ return htmlspecialchars((string)$s,
     <h1 class="h3 mb-0"><?= e($title ?? 'Espace Administrateur') ?></h1>
     <div class="btn-group">
       <a class="btn btn-outline-secondary" href="/employee/dashboard">Espace employé</a>
-      <a class="btn btn-outline-secondary" href="/user/dashboard">Espace utilisateur</a>
+      <a class="btn btn-outline-secondary" href="/user/dashboard">Espace administrateur</a>
       <a class="btn btn-outline-secondary" href="/logout">Déconnexion</a>
     </div>
   </div>
