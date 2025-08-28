@@ -183,6 +183,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const $canvas = document.getElementById('creditsHistoryChart');
   let chart;
 
+  // Formateur FR: 'YYYY-MM-DD' -> 'DD/MM/YYYY'
+  const fmtFR = (ymd) => {
+    if (!ymd) return '';
+    const [y, m, d] = String(ymd).split('-');
+    return `${d}/${m}/${y}`;
+  };
+
   async function loadData(days){
     const res  = await fetch(`/admin/api/credits-history?days=${encodeURIComponent(days)}`, { credentials: 'same-origin' });
     const json = await res.json();
@@ -210,12 +217,22 @@ document.addEventListener('DOMContentLoaded', () => {
         responsive: true,
         interaction: { mode: 'index', intersect: false },
         scales: {
-          x: { title: { display: true, text: 'Jour' } },
+          x: {
+            title: { display: true, text: 'Jour' },
+            ticks: {
+              callback: function(value) {
+                const raw = this.getLabelForValue(value); // récupère 'YYYY-MM-DD'
+                return fmtFR(raw);
+              }
+            }
+          },
           y: { title: { display: true, text: 'Crédits' }, beginAtZero: true, ticks: { precision: 0 } }
         },
         plugins: {
           tooltip: {
             callbacks: {
+              // Titre du tooltip au format FR
+              title: (items) => items.length ? fmtFR(items[0].label) : '',
               afterBody: (items) => {
                 const i = items[0].dataIndex;
                 const ids = rideIds[i];
