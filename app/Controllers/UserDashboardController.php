@@ -30,14 +30,23 @@ final class UserDashboardController extends BaseController
         $rides       = $uid ? Ride::forDriverUpcoming($uid) : [];
         $vehicles    = $uid ? Vehicle::forUser($uid) : [];
 
-        /* ===== AJOUT : attacher les participants confirmés à chaque trajet ===== */
+        /* === AJOUTS === */
+        // 1) Conducteur pour chaque réservation (Mes réservations)
+        if (!empty($reservations)) {
+            foreach ($reservations as &$res) {
+                $rideId = (int)($res['ride_id'] ?? $res['id'] ?? 0);
+                $res['driver'] = $rideId ? Ride::driverInfo($rideId) : null;
+            }
+            unset($res);
+        }
+        // 2) Participants confirmés pour chaque trajet conducteur
         if (!empty($rides)) {
             foreach ($rides as &$r) {
                 $r['participants'] = Ride::passengersForRide((int)($r['id'] ?? 0));
             }
             unset($r);
         }
-        /* ====================================================================== */
+        /* ============== */
 
         $this->render('dashboard/user', [
             'title'        => 'Espace utilisateur',
@@ -375,7 +384,7 @@ final class UserDashboardController extends BaseController
             if (method_exists(Ride::class, 'createForDriver')) {
                 $ok = (bool)Ride::createForDriver($uid, $vehicleId, $payload);
             } else {
-                // 2) Compatibilité avec ta signature Ride::create(int,int,string,string,string,string,int,int,...)
+                // 2) Compatibilité avec signature Ride::create(...)
                 try {
                     $newId = Ride::create(
                         $uid,
@@ -389,7 +398,7 @@ final class UserDashboardController extends BaseController
                     );
                     $ok = $newId > 0;
                 } catch (\ArgumentCountError|\TypeError $e) {
-                    // 3) Fallback: certaines anciennes versions acceptent un payload array
+                    // 3) Fallback: anciennes versions
                     try {
                         $ok = (bool)Ride::create($uid, $vehicleId, $payload);
                     } catch (\Throwable $e2) {

@@ -215,6 +215,28 @@ if (!function_exists('initials_from_name')) {
                       </span>
                     </div>
 
+                    <!-- AJOUT : conducteur -->
+                    <?php $d = $res['driver'] ?? null; ?>
+                    <?php if ($d): ?>
+                      <div class="d-flex align-items-center gap-2 mb-2">
+                        <?php if (!empty($d['avatar_path'])): ?>
+                          <img src="<?= BASE_URL . e($d['avatar_path']) ?>"
+                               alt="Conducteur"
+                               class="rounded-circle border"
+                               width="28" height="28"
+                               style="object-fit:cover;">
+                        <?php else: ?>
+                          <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center border"
+                               style="width:28px;height:28px;font-size:12px;">
+                            <?= e(initials_from_name((string)($d['display_name'] ?? 'Conducteur'))) ?>
+                          </div>
+                        <?php endif; ?>
+                        <small class="fw-semibold"><?= e($d['display_name'] ?? 'Conducteur') ?></small>
+                        <span class="badge bg-light text-dark border">Conducteur</span>
+                      </div>
+                    <?php endif; ?>
+                    <!-- FIN AJOUT -->
+
                     <div class="mb-2">
                       <div class="d-flex align-items-center mb-1">
                         <i class="fas fa-map-marker-alt text-primary me-1"></i>
@@ -317,7 +339,6 @@ if (!function_exists('initials_from_name')) {
                     </div>
                     <?php endif; ?>
 
-                    <!-- === AJOUT : Participants sous “Arrivée” === -->
                     <?php
                       $participants = $ride['participants'] ?? [];
                       $maxShown = 4;
@@ -356,7 +377,6 @@ if (!function_exists('initials_from_name')) {
                         <small class="text-muted">Aucun pour le moment</small>
                       <?php endif; ?>
                     </div>
-                    <!-- === FIN AJOUT === -->
 
                     <div class="d-grid gap-1">
                       <div class="btn-group" role="group">

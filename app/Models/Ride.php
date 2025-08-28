@@ -140,7 +140,9 @@ class Ride
         return self::all($sql, [':d'=>$driverId]);
     }
 
-    /* ===== AJOUT pour l’affichage des participants (nom + avatar) ===== */
+    /* ===== AJOUTS ===== */
+
+    /** Participants confirmés d’un trajet (nom affichable + avatar). */
     public static function passengersForRide(int $rideId): array {
         $sql = "SELECT 
                     u.id,
@@ -155,5 +157,21 @@ class Ride
                   AND b.status = 'CONFIRMED'
                 ORDER BY b.created_at ASC";
         return self::all($sql, [':r' => $rideId]);
+    }
+
+    /** Informations conducteur pour un ride donné (pour “Mes réservations”). */
+    public static function driverInfo(int $rideId): ?array {
+        $sql = "SELECT 
+                    u.id,
+                    u.avatar_path,
+                    TRIM(CONCAT_WS(' ',
+                        NULLIF(u.prenom, ''),
+                        NULLIF(u.nom, '')
+                    )) AS display_name
+                FROM rides r
+                JOIN users u ON u.id = r.driver_id
+                WHERE r.id = :r
+                LIMIT 1";
+        return self::one($sql, [':r' => $rideId]);
     }
 }
