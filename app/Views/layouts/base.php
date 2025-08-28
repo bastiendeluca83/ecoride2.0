@@ -108,7 +108,13 @@ try {
     <div class="collapse navbar-collapse" id="mainNav">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
         <li class="nav-item"><a class="nav-link text-white" href="/">Accueil</a></li>
-        <li class="nav-item"><a class="nav-link text-white" href="/rides">Covoiturages</a></li>
+       <li class="nav-item">
+  <a class="nav-link text-white<?= (strpos($currentUrl ?? '/', '/covoiturage') === 0 ? ' active fw-semibold' : '') ?>"
+     href="<?= BASE_URL ?>covoiturage">
+    <i class="fas fa-users me-1"></i> Covoiturage
+  </a>
+</li>
+
         <?php if (!$user): ?>
           <li class="nav-item ms-lg-2">
             <button class="btn btn-light" data-bs-toggle="modal" data-bs-target="#authModal">Connexion</button>

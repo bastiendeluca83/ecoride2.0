@@ -56,6 +56,9 @@ $router->post('/logout',                   [AuthController::class, 'logout']); /
    Dashboard – Passerelle
    ======================= */
 $router->get('/dashboard',                 [DashboardGatewayController::class, 'route']);
+/*Covoiturages*/
+$router->get('/covoiturage', [\App\Controllers\RideController::class, 'covoiturage']);
+
 
 /* =======================
    Espace UTILISATEUR (USER)

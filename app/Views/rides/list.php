@@ -1,11 +1,26 @@
 <?php
 // app/Views/rides/list.php
-// Injecté via BaseController::render()
-// Variables attendues : $rides (array), éventuellement $filters (array)
 
 if (!function_exists('h')) {
   function h($v){ return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
 }
+
+/** Badge (libellés fidèles à ton formulaire profil) */
+$prefBadge = function(string $type, $raw, string $icon) {
+    $v = (string)($raw ?? '0');
+
+    $labels = [
+        'smoker'  => ['0'=>'N/A',        '1'=>'Non',           '2'=>'Oui'],
+        'animals' => ['0'=>'N/A',        '1'=>'Non',           '2'=>'Oui'],
+        'music'   => ['0'=>'N/A',        '1'=>'Plutôt non',    '2'=>'Avec plaisir'],
+        'chatty'  => ['0'=>'N/A',        '1'=>'Discret',       '2'=>'Bavard'],
+        'ac'      => ['0'=>'N/A',        '1'=>'Oui',           '2'=>'Peu/éteinte'],
+    ];
+    $label = $labels[$type][$v] ?? 'N/A';
+    $cls = ($v === '0') ? 'bg-secondary' : 'bg-success';
+
+    return '<span class="badge '.$cls.'"><i class="fas '.$icon.' me-1"></i>'.$label.'</span>';
+};
 
 $title = 'Liste des covoiturages • EcoRide';
 ?>
@@ -33,7 +48,7 @@ $title = 'Liste des covoiturages • EcoRide';
     </div>
     <div class="col-md-3">
       <label for="min_note" class="form-label">Note minimum</label>
-      <input type="number" id="min_note" name="min_note" step="0.1" class="form-control"
+      <input type="number" step="0.1" id="min_note" name="min_note" class="form-control"
              value="<?= h($_GET['min_note'] ?? '') ?>">
     </div>
     <div class="col-md-3 d-flex align-items-end">
@@ -41,42 +56,52 @@ $title = 'Liste des covoiturages • EcoRide';
     </div>
   </form>
 
-  <!-- Liste des trajets -->
+  <!-- Liste -->
   <div class="row g-3">
     <?php foreach ($rides as $r): ?>
+      <?php
+        $driverName = trim((string)($r['driver_display_name'] ?? 'Conducteur'));
+        $avatar = $r['driver_avatar'] ?? '';
+        if ($avatar && $avatar[0] !== '/') { $avatar = '/'.$avatar; }
+        $avatarUrl = $avatar ?: 'https://api.dicebear.com/9.x/initials/svg?seed='.urlencode($driverName);
+        $eco   = (int)($r['is_eco'] ?? 0) === 1;
+        $seats = (int)($r['seats_left'] ?? 0);
+        $price = (int)($r['price'] ?? 0);
+      ?>
       <div class="col-md-6 col-lg-4">
         <div class="card h-100 shadow-sm">
           <div class="card-body">
+            <!-- Conducteur -->
             <div class="d-flex align-items-center mb-3">
-              <img src="<?= h($r['avatar_url'] ?? 'https://via.placeholder.com/48') ?>"
-                   class="rounded-circle border me-2" width="48" height="48"
-                   alt="Avatar conducteur">
-              <div>
-                <div class="fw-bold"><?= h($r['pseudo'] ?? 'Conducteur') ?></div>
-                <?php if (!empty($r['note'])): ?>
-                  <div class="small text-muted"><?= h($r['note']) ?>/5</div>
-                <?php endif; ?>
-              </div>
+              <img src="<?= h($avatarUrl) ?>" class="rounded-circle border me-2" width="48" height="48" alt="Avatar">
+              <div class="fw-bold"><?= h($driverName) ?></div>
             </div>
 
+            <!-- Trajet -->
             <p class="mb-1"><strong><?= h($r['from_city']) ?></strong> → <strong><?= h($r['to_city']) ?></strong></p>
             <p class="mb-1">
-              <?= date('d/m/Y H\hi', strtotime($r['date_start'])) ?>
-              <?php if (!empty($r['date_end'])): ?> - <?= date('H\hi', strtotime($r['date_end'])) ?><?php endif; ?>
-            </p>
-            <p class="mb-1"><strong><?= (int)$r['price'] ?> crédits</strong></p>
-            <p class="mb-2">
-              <span class="badge <?= ($r['seats_left'] > 0 ? 'text-bg-success' : 'text-bg-danger') ?>">
-                <?= (int)$r['seats_left'] ?> place(s)
-              </span>
-              <?php if (!empty($r['is_eco'])): ?>
-                <span class="badge text-bg-success">Éco</span>
-              <?php endif; ?>
+              <?= h(date('d/m/Y H\hi', strtotime($r['date_start']))) ?>
+              <?php if (!empty($r['date_end'])): ?> - <?= h(date('H\hi', strtotime($r['date_end']))) ?><?php endif; ?>
             </p>
 
-            <a href="/rides/show?id=<?= (int)$r['id'] ?>" class="btn btn-outline-primary w-100">
-              Détail
-            </a>
+            <div class="d-flex align-items-center mb-2 gap-2">
+              <span class="fw-bold"><i class="fas fa-coins text-warning me-1"></i><?= $price ?> crédits</span>
+              <span class="badge <?= $seats > 0 ? 'text-bg-success' : 'text-bg-danger' ?>">
+                <?= $seats ?> place(s)
+              </span>
+              <?php if ($eco): ?><span class="badge text-bg-success">Éco</span><?php endif; ?>
+            </div>
+
+            <!-- Préférences du conducteur -->
+            <div class="d-flex flex-wrap gap-1 mb-3">
+              <?= $prefBadge('smoker',  $r['smoker']  ?? null, 'fa-smoking') ?>
+              <?= $prefBadge('animals', $r['animals'] ?? null, 'fa-paw') ?>
+              <?= $prefBadge('music',   $r['music']   ?? null, 'fa-music') ?>
+              <?= $prefBadge('chatty',  $r['chatty']  ?? null, 'fa-comments') ?>
+              <?= $prefBadge('ac',      $r['ac']      ?? null, 'fa-snowflake') ?>
+            </div>
+
+            <a href="/rides/show?id=<?= (int)$r['id'] ?>" class="btn btn-outline-primary w-100">Détail</a>
           </div>
         </div>
       </div>
