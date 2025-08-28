@@ -46,6 +46,22 @@ final class UserDashboardController extends BaseController
             }
             unset($r);
         }
+        // 3) Stats trajets effectués + CO2 pour l’utilisateur connecté
+        $driverDone    = $uid ? Ride::countCompletedByDriver($uid) : 0;
+        $passengerDone = $uid ? Booking::countCompletedByPassenger($uid) : 0;
+        $totalDone     = (int)$driverDone + (int)$passengerDone;
+
+        // Facteur CO2 par trajet (kg) – tu peux le déplacer en config si tu préfères
+        $co2PerTrip = 2.5;
+        $co2Total   = $totalDone * $co2PerTrip;
+
+        $stats = [
+            'completed_total' => $totalDone,
+            'driver_total'    => (int)$driverDone,
+            'passenger_total' => (int)$passengerDone,
+            'co2_per_trip'    => $co2PerTrip,
+            'co2_total'       => $co2Total,
+        ];
         /* ============== */
 
         $this->render('dashboard/user', [
@@ -54,6 +70,7 @@ final class UserDashboardController extends BaseController
             'reservations' => $reservations,
             'rides'        => $rides,
             'vehicles'     => $vehicles,
+            'stats'        => $stats,
         ]);
     }
 

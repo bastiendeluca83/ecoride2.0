@@ -174,4 +174,16 @@ class Ride
                 LIMIT 1";
         return self::one($sql, [':r' => $rideId]);
     }
+
+    /** >>> Compte des trajets terminés en tant que conducteur (pour l’utilisateur connecté). */
+    public static function countCompletedByDriver(int $userId): int {
+        $sql = "SELECT COUNT(*) 
+                FROM rides r
+                WHERE r.driver_id = :u
+                  AND r.date_end IS NOT NULL
+                  AND r.date_end < NOW()";
+        $st = self::pdo()->prepare($sql);
+        $st->execute([':u'=>$userId]);
+        return (int)$st->fetchColumn();
+    }
 }

@@ -3,6 +3,7 @@
 /** @var array $reservations */
 /** @var array $rides */
 /** @var array $vehicles */
+/** @var array $stats */
 if (!function_exists('e')) {
   function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 }
@@ -37,6 +38,8 @@ if (!function_exists('initials_from_name')) {
     return $first . ($second ?: '');
   }
 }
+
+$stats = $stats ?? ['completed_total'=>0,'co2_total'=>0,'co2_per_trip'=>2.5];
 ?>
 
 <div class="container-fluid px-4 py-5" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); min-height: 100vh;">
@@ -69,7 +72,7 @@ if (!function_exists('initials_from_name')) {
           <div class="card-body text-center p-3">
             <div class="mb-2"><i class="fas fa-route fa-2x text-success"></i></div>
             <h6 class="card-title mb-2 fw-bold text-dark">Trajets effectués</h6>
-            <div class="display-5 fw-bold mb-1 text-success"><?= (int)($user['total_rides'] ?? 0) ?></div>
+            <div class="display-5 fw-bold mb-1 text-success"><?= (int)($stats['completed_total'] ?? 0) ?></div>
             <small class="text-muted fw-medium">voyages</small>
           </div>
         </div>
@@ -79,7 +82,7 @@ if (!function_exists('initials_from_name')) {
           <div class="card-body text-center p-3">
             <div class="mb-2"><i class="fas fa-leaf fa-2x text-warning"></i></div>
             <h6 class="card-title mb-2 fw-bold text-dark">Impact CO₂</h6>
-            <div class="display-6 fw-bold mb-1 text-warning"><?= number_format((int)($user['total_rides'] ?? 0) * 2.5, 1) ?> kg</div>
+            <div class="display-6 fw-bold mb-1 text-warning"><?= number_format((float)($stats['co2_total'] ?? 0), 1) ?> kg</div>
             <small class="text-muted fw-medium">économisés</small>
           </div>
         </div>
@@ -210,9 +213,14 @@ if (!function_exists('initials_from_name')) {
                   <div class="card-body p-3">
                     <div class="d-flex justify-content-between align-items-start mb-2">
                       <small class="fw-bold text-success mb-0"><i class="fas fa-route me-1"></i>Trajet</small>
-                      <span class="badge bg-success text-white px-2 py-1 rounded-pill small">
-                        <?= (int)($res['credits_spent'] ?? 0) ?> cr.
-                      </span>
+                      <div class="d-flex align-items-center gap-1">
+                        <span class="badge bg-success text-white px-2 py-1 rounded-pill small">
+                          <?= (int)($res['credits_spent'] ?? 0) ?> cr.
+                        </span>
+                        <span class="badge bg-light text-dark border rounded-pill small">
+                          ≈ <?= number_format((float)($stats['co2_per_trip'] ?? 2.5), 1) ?> kg
+                        </span>
+                      </div>
                     </div>
 
                     <!-- AJOUT : conducteur -->
@@ -304,9 +312,14 @@ if (!function_exists('initials_from_name')) {
                   <div class="card-body p-3">
                     <div class="d-flex justify-content-between align-items-start mb-2">
                       <small class="fw-bold text-danger mb-0"><i class="fas fa-steering-wheel me-1"></i>Mon trajet</small>
-                      <span class="badge bg-primary text-white px-2 py-1 rounded-pill small">
-                        <?= (int)($ride['seats_left'] ?? 0) ?> place<?= ((int)($ride['seats_left'] ?? 0) > 1 ? 's' : '') ?>
-                      </span>
+                      <div class="d-flex align-items-center gap-1">
+                        <span class="badge bg-primary text-white px-2 py-1 rounded-pill small">
+                          <?= (int)($ride['seats_left'] ?? 0) ?> place<?= ((int)($ride['seats_left'] ?? 0) > 1 ? 's' : '') ?>
+                        </span>
+                        <span class="badge bg-light text-dark border rounded-pill small">
+                          ≈ <?= number_format((float)($stats['co2_per_trip'] ?? 2.5), 1) ?> kg
+                        </span>
+                      </div>
                     </div>
 
                     <div class="mb-2">
