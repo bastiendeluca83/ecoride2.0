@@ -25,6 +25,18 @@ if (!function_exists('age_years')) {
 $dobRaw = $user['date_naissance'] ?? null;
 $dobTxt = $dobRaw ? date('d/m/Y', strtotime($dobRaw)) : null;
 $age = age_years($dobRaw);
+
+/* helper initials si pas d'avatar */
+if (!function_exists('initials_from_name')) {
+  function initials_from_name(string $name): string {
+    $name = trim($name);
+    if ($name === '') return 'U';
+    $parts = preg_split('/\s+/', $name);
+    $first = mb_strtoupper(mb_substr($parts[0] ?? '', 0, 1));
+    $second = mb_strtoupper(mb_substr($parts[1] ?? '', 0, 1));
+    return $first . ($second ?: '');
+  }
+}
 ?>
 
 <div class="container-fluid px-4 py-5" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); min-height: 100vh;">
@@ -224,7 +236,6 @@ $age = age_years($dobRaw);
                     </div>
 
                     <?php if (!empty($res['date_end'])): ?>
-                    <!-- >>> AJOUT affichage arrivée pour réservation -->
                     <div class="mb-2">
                       <small class="text-muted">ARRIVÉE</small>
                       <div class="small fw-bold text-dark">
@@ -233,7 +244,6 @@ $age = age_years($dobRaw);
                       </div>
                     </div>
                     <?php endif; ?>
-                    <!-- ^^^ FIN AJOUT -->
 
                     <a class="btn btn-outline-danger btn-sm w-100 rounded-3 fw-semibold"
                        href="<?= BASE_URL ?>user/ride/cancel?id=<?= (int)($res['id'] ?? 0) ?>">
@@ -298,7 +308,6 @@ $age = age_years($dobRaw);
                     </div>
 
                     <?php if (!empty($ride['date_end'])): ?>
-                    <!-- >>> AJOUT affichage arrivée pour trajet conducteur -->
                     <div class="mb-2">
                       <small class="text-muted">ARRIVÉE</small>
                       <div class="small fw-bold text-dark">
@@ -307,7 +316,47 @@ $age = age_years($dobRaw);
                       </div>
                     </div>
                     <?php endif; ?>
-                    <!-- ^^^ FIN AJOUT -->
+
+                    <!-- === AJOUT : Participants sous “Arrivée” === -->
+                    <?php
+                      $participants = $ride['participants'] ?? [];
+                      $maxShown = 4;
+                      $shown = 0;
+                      $more = max(0, count($participants) - $maxShown);
+                    ?>
+                    <div class="mb-2">
+                      <small class="text-muted d-block">Participants</small>
+                      <?php if (!empty($participants)): ?>
+                        <div class="d-flex align-items-center flex-wrap gap-2">
+                          <?php foreach ($participants as $p): ?>
+                            <?php if ($shown >= $maxShown) break; $shown++; ?>
+                            <div class="d-flex align-items-center me-2">
+                              <?php if (!empty($p['avatar_path'])): ?>
+                                <img
+                                  src="<?= BASE_URL . e($p['avatar_path']) ?>"
+                                  alt="avatar"
+                                  class="rounded-circle border"
+                                  width="28" height="28"
+                                  style="object-fit: cover;"
+                                />
+                              <?php else: ?>
+                                <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center border"
+                                     style="width:28px;height:28px;font-size:12px;">
+                                  <?= e(initials_from_name((string)($p['display_name'] ?? 'Utilisateur'))) ?>
+                                </div>
+                              <?php endif; ?>
+                              <small class="ms-2 fw-semibold"><?= e($p['display_name'] ?? 'Utilisateur') ?></small>
+                            </div>
+                          <?php endforeach; ?>
+                          <?php if ($more > 0): ?>
+                            <span class="badge bg-secondary">+<?= (int)$more ?></span>
+                          <?php endif; ?>
+                        </div>
+                      <?php else: ?>
+                        <small class="text-muted">Aucun pour le moment</small>
+                      <?php endif; ?>
+                    </div>
+                    <!-- === FIN AJOUT === -->
 
                     <div class="d-grid gap-1">
                       <div class="btn-group" role="group">

@@ -30,6 +30,15 @@ final class UserDashboardController extends BaseController
         $rides       = $uid ? Ride::forDriverUpcoming($uid) : [];
         $vehicles    = $uid ? Vehicle::forUser($uid) : [];
 
+        /* ===== AJOUT : attacher les participants confirmés à chaque trajet ===== */
+        if (!empty($rides)) {
+            foreach ($rides as &$r) {
+                $r['participants'] = Ride::passengersForRide((int)($r['id'] ?? 0));
+            }
+            unset($r);
+        }
+        /* ====================================================================== */
+
         $this->render('dashboard/user', [
             'title'        => 'Espace utilisateur',
             'user'         => $user,

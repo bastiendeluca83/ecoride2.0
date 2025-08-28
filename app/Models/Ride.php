@@ -139,4 +139,21 @@ class Ride
                 ORDER BY r.date_start DESC";
         return self::all($sql, [':d'=>$driverId]);
     }
+
+    /* ===== AJOUT pour l’affichage des participants (nom + avatar) ===== */
+    public static function passengersForRide(int $rideId): array {
+        $sql = "SELECT 
+                    u.id,
+                    u.avatar_path,
+                    TRIM(CONCAT_WS(' ',
+                        NULLIF(u.prenom, ''),
+                        NULLIF(u.nom, '')
+                    )) AS display_name
+                FROM bookings b
+                JOIN users u ON u.id = b.passenger_id
+                WHERE b.ride_id = :r
+                  AND b.status = 'CONFIRMED'
+                ORDER BY b.created_at ASC";
+        return self::all($sql, [':r' => $rideId]);
+    }
 }

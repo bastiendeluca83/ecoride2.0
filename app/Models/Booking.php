@@ -74,4 +74,29 @@ class Booking
     }
 
     public static function delete(int $id): bool { return self::pdo()->prepare("DELETE FROM bookings WHERE id=:id")->execute([':id'=>$id]); }
+    /** Participants confirmés d’un trajet (nom + avatar) */
+public static function participantsForRide(int $rideId): array
+{
+    $sql = "
+        SELECT
+            u.id,
+            /* Affiche un nom quel que soit le schéma FR/EN */
+            TRIM(
+                COALESCE(
+                    CONCAT(u.prenom, ' ', u.nom),
+                    CONCAT(u.first_name, ' ', u.last_name),
+                    u.pseudo,
+                    u.email
+                )
+            ) AS display_name,
+            u.avatar_path
+        FROM bookings b
+        JOIN users u ON u.id = b.passenger_id
+        WHERE b.ride_id = :r
+          AND UPPER(b.status) = 'CONFIRMED'
+        ORDER BY b.created_at ASC
+    ";
+    return self::all($sql, [':r' => $rideId]);
+}
+
 }
