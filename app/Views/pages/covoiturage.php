@@ -84,7 +84,6 @@ function pref_txt(string $k, int $v): string {
   return $map[$k][$v] ?? 'N/A';
 }
 function pref_badge(string $k, int $v): string {
-  // couleurs simples/visibles
   if ($v === 0) return 'bg-secondary';
   if ($k === 'smoker')  return $v===1 ? 'bg-success' : 'bg-warning';
   if ($k === 'animals') return $v===2 ? 'bg-success' : 'bg-secondary';
@@ -113,7 +112,7 @@ $isLogged = !empty($_SESSION['user']['id']);
       </a>
     </div>
 
-    <!-- À VENIR -->
+    <!-- À VENIR — SCROLLER HORIZONTAL -->
     <div class="card border-0 shadow rounded-3 overflow-hidden mb-4">
       <div class="card-header text-white" style="background:linear-gradient(135deg,#20bf6b 0%,#0fb9b1 100%);padding:1rem;">
         <h5 class="fw-bold mb-1"><i class="fas fa-calendar-plus me-2"></i>Covoiturages à venir</h5>
@@ -121,7 +120,8 @@ $isLogged = !empty($_SESSION['user']['id']);
       </div>
       <div class="card-body p-3">
         <?php if (!empty($upcoming)): ?>
-          <div class="row g-3">
+          <!-- rangée non-wrap qui scroll -->
+          <div class="row flex-nowrap overflow-auto g-3 pb-2" role="region" aria-label="Covoiturages à venir">
             <?php foreach ($upcoming as $ride): ?>
               <?php
                 $driverName   = ride_driver_name($ride);
@@ -132,9 +132,9 @@ $isLogged = !empty($_SESSION['user']['id']);
                 $seats  = (int)($ride['seats_left'] ?? 0);
                 $prefs  = ride_prefs_from_row($ride);
               ?>
-              <div class="col-md-6 col-lg-4">
+              <!-- largeurs responsives pour des cartes “larges” -->
+              <div class="col-10 col-sm-8 col-md-6 col-lg-5 col-xl-4">
                 <div class="card h-100 border rounded-3 shadow-sm bg-white">
-
                   <!-- En-tête conducteur -->
                   <div class="p-3 border-bottom d-flex align-items-center">
                     <?php if ($driverAvatar): ?>

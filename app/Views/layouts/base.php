@@ -23,6 +23,9 @@ if (empty($_SESSION['csrf'])) {
 
 $currentUrl = $_SERVER['REQUEST_URI'] ?? '/';
 
+/* >>> SEULE AJOUTE IMPORTANTE : détecter la page covoiturage <<< */
+$isCovoiturage = (strpos($currentUrl ?? '/', '/covoiturage') === 0);
+
 /* Avatar */
 $avatarPath = $user['avatar_path'] ?? '';
 if ($avatarPath && $avatarPath[0] !== '/') {
@@ -108,12 +111,12 @@ try {
     <div class="collapse navbar-collapse" id="mainNav">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
         <li class="nav-item"><a class="nav-link text-white" href="/">Accueil</a></li>
-       <li class="nav-item">
-  <a class="nav-link text-white<?= (strpos($currentUrl ?? '/', '/covoiturage') === 0 ? ' active fw-semibold' : '') ?>"
-     href="<?= BASE_URL ?>covoiturage">
-    <i class="fas fa-users me-1"></i> Covoiturage
-  </a>
-</li>
+        <li class="nav-item">
+          <a class="nav-link text-white<?= (strpos($currentUrl ?? '/', '/covoiturage') === 0 ? ' active fw-semibold' : '') ?>"
+             href="<?= BASE_URL ?>covoiturage">
+            <i class="fas fa-users me-1"></i> Covoiturage
+          </a>
+        </li>
 
         <?php if (!$user): ?>
           <li class="nav-item ms-lg-2">
@@ -285,13 +288,19 @@ try {
 </div>
 
 <main class="flex-grow-1 py-4">
-  <div class="container">
-    <div class="row justify-content-center">
-      <div class="col-12 col-lg-10 col-xl-8">
-        <?= $content ?? '' ?>
+  <?php if ($isCovoiturage): ?>
+    <!-- Pleine largeur uniquement pour /covoiturage -->
+    <?= $content ?? '' ?>
+  <?php else: ?>
+    <!-- Layout standard pour toutes les autres pages -->
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="col-12 col-lg-10 col-xl-8">
+          <?= $content ?? '' ?>
+        </div>
       </div>
     </div>
-  </div>
+  <?php endif; ?>
 </main>
 
 <footer class="mt-auto border-top bg-white">
