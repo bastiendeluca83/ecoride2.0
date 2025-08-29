@@ -20,6 +20,7 @@ final class AdminController extends BaseController
         $from = (new \DateTimeImmutable('-13 days'))->format('Y-m-d');
 
         $kpis          = Stats::kpis();
+        $totalPlatformPlace = Stats::totalPlatformPlace();
         $ridesPerDay   = Stats::ridesPerDay($from, $to);
         $creditsPerDay = Stats::platformCreditsPerDay($from, $to);
         $users         = User::listAll();
@@ -31,6 +32,7 @@ final class AdminController extends BaseController
         $this->render('dashboard/admin', [
             'title'         => 'Espace Administrateur',
             'kpis'          => $kpis,
+            'totalPlatformPlace' => $totalPlatformPlace,
             'ridesPerDay'   => $ridesPerDay,
             'creditsPerDay' => $creditsPerDay,
             'users'         => $users,

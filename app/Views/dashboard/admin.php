@@ -33,7 +33,9 @@ if (!function_exists('e')) { function e($s){ return htmlspecialchars((string)$s,
     </div></div></div>
     <div class="col-md-3"><div class="card shadow-sm"><div class="card-body">
       <h6 class="text-muted mb-1">Places restantes (total)</h6>
-      <p class="display-6 mb-0"><strong><?= (int)($kpis['seats_left_sum'] ?? 0) ?></strong></p>
+<p class="display-6 mb-0">
+  <strong><?= (int)($totalPlatformPlace ?? 0) ?></strong>
+</p>
     </div></div></div>
     <div class="col-md-3"><div class="card shadow-sm"><div class="card-body">
       <h6 class="text-muted mb-1">Crédits plateforme (total)</h6>

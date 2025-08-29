@@ -9,7 +9,7 @@ use PDO;
 
 class AdminStats extends BaseModels
 {
-    /** Nombre de covoiturages par jour (SQL) */
+    /** Nombre de covoiturages par jour */
     public static function ridesPerDay(string $fromDate, string $toDate): array
     {
         $sql = "SELECT DATE(date_start) AS jour, COUNT(*) AS nb
@@ -21,55 +21,98 @@ class AdminStats extends BaseModels
     }
 
     /**
-     * Crédits plateforme / jour via **bookings** confirmées.
-     * On compte 2 crédits par réservation confirmée.
-     * (Compat majuscules/minuscules sur status).
+     * Crédits plateforme / jour.
+     * 1) Si la table 'transactions' est présente: on somme les lignes dont la description
+     *    contient 'plate-forme/plateforme' (insensible à la casse).
+     * 2) Fallback: 2 crédits par réservation confirmée (sur bookings).
      */
     public static function platformCreditsPerDay(
         string $fromDate,
         string $toDate,
         int $platformFee = 2
     ): array {
+        // 1) via transactions
+        try {
+            $sql = "
+                SELECT DATE(created_at) AS jour, COALESCE(SUM(montant),0) AS credits
+                FROM transactions
+                WHERE (LOWER(description) LIKE '%plate-forme%'
+                       OR LOWER(description) LIKE '%plateforme%')
+                  AND DATE(created_at) BETWEEN :a AND :b
+                GROUP BY DATE(created_at)
+                ORDER BY jour ASC
+            ";
+            $rows = self::all($sql, [':a'=>$fromDate, ':b'=>$toDate]);
+            if ($rows) return $rows;
+        } catch (\Throwable $e) {
+            // ignore -> fallback
+        }
+
+        // 2) fallback via bookings confirmées
         $sql = "
-            SELECT
-                DATE(b.created_at) AS jour,
-                (COUNT(b.id) * :fee) AS credits
+            SELECT DATE(b.created_at) AS jour, (COUNT(b.id) * :fee) AS credits
             FROM bookings b
             WHERE DATE(b.created_at) BETWEEN :a AND :b
-              AND (
-                    b.status IN ('CONFIRMED','PAID','APPROVED')
-                 OR b.status IN ('confirmed','paid','approved')
-              )
+              AND UPPER(b.status)='CONFIRMED'
             GROUP BY DATE(b.created_at)
             ORDER BY jour ASC
         ";
         return self::all($sql, [':a'=>$fromDate, ':b'=>$toDate, ':fee'=>$platformFee]);
     }
 
-    /** Total crédits gagnés (2 par réservation confirmée) */
+    /** Total crédits gagnés (transactions si dispo, sinon 2/booking confirmée) */
     public static function totalCreditsEarned(int $platformFee = 2): int
     {
+        // 1) transactions
+        try {
+            $row = self::one("
+                SELECT COALESCE(SUM(montant),0) AS total
+                FROM transactions
+                WHERE LOWER(description) LIKE '%plate-forme%'
+                   OR LOWER(description) LIKE '%plateforme%'
+            ");
+            if ($row && isset($row['total'])) return (int)$row['total'];
+        } catch (\Throwable $e) {}
+
+        // 2) fallback
         $row = self::one("
             SELECT COUNT(*) * :fee AS total
             FROM bookings b
-            WHERE (
-                    b.status IN ('CONFIRMED','PAID','APPROVED')
-                 OR b.status IN ('confirmed','paid','approved')
-            )
+            WHERE UPPER(b.status)='CONFIRMED'
         ", [':fee'=>$platformFee]);
         return (int)($row['total'] ?? 0);
     }
 
     /**
-     * Historique détaillé: crédits / jour + liste des ride_id du jour.
-     * Source: bookings (création/confirmation d'une résa) -> 2 crédits/booking.
-     * La date d'agrégat = DATE(bookings.created_at)
+     * Historique détaillé: crédits / jour + liste ride_id du jour.
+     * Chemin principal via transactions (commission plate-forme), sinon fallback bookings.
      */
     public static function platformCreditsHistoryDetailed(
         string $fromDate,
         string $toDate,
         int $platformFee = 2
     ): array {
+        // 1) transactions
+        try {
+            $sql = "
+                SELECT
+                    DATE(created_at) AS jour,
+                    COALESCE(SUM(montant),0) AS credits,
+                    GROUP_CONCAT(DISTINCT ride_id ORDER BY ride_id SEPARATOR ',') AS ride_ids
+                FROM transactions
+                WHERE (LOWER(description) LIKE '%plate-forme%'
+                       OR LOWER(description) LIKE '%plateforme%')
+                  AND DATE(created_at) BETWEEN :a AND :b
+                GROUP BY DATE(created_at)
+                ORDER BY jour ASC
+            ";
+            $rows = self::all($sql, [':a'=>$fromDate, ':b'=>$toDate]);
+            if ($rows) return $rows;
+        } catch (\Throwable $e) {
+            // ignore
+        }
+
+        // 2) fallback via bookings confirmées
         $sql = "
             SELECT
                 DATE(b.created_at) AS jour,
@@ -77,10 +120,7 @@ class AdminStats extends BaseModels
                 GROUP_CONCAT(DISTINCT b.ride_id ORDER BY b.ride_id SEPARATOR ',') AS ride_ids
             FROM bookings b
             WHERE DATE(b.created_at) BETWEEN :a AND :b
-              AND (
-                    b.status IN ('CONFIRMED','PAID','APPROVED')
-                 OR b.status IN ('confirmed','paid','approved')
-              )
+              AND UPPER(b.status)='CONFIRMED'
             GROUP BY DATE(b.created_at)
             ORDER BY jour ASC
         ";
