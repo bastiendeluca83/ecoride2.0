@@ -131,11 +131,6 @@ class User
         }
     }
 
-    /**
-     * $data accepte FR (nom, prenom, telephone, adresse, email, bio, date_naissance)
-     * et/ou EN (last_name, first_name, phone, address, email, bio, date_of_birth)
-     * + "avatar_path".
-     */
     public static function updateProfile(int $id, array $data): bool {
         $useEN = self::useEnglish();
         $dateCol = self::dateColumn() ?? 'date_naissance';
@@ -228,7 +223,6 @@ class User
        AJOUTS pour AdminController
        ========================= */
 
-    /** Crée un employé (rôle EMPLOYEE, 0 crédits). */
     public static function createEmployee(string $email, string $password, ?string $nom = null, ?string $prenom = null): int
     {
         $pdo = self::pdo();
@@ -279,7 +273,6 @@ class User
         return (int)$pdo->lastInsertId();
     }
 
-    /** (Dé)suspends un compte utilisateur via la colonne dispo (is_suspended/suspended). */
     public static function setSuspended(int $userId, bool $suspend): bool
     {
         $pdo = self::pdo();
@@ -288,7 +281,6 @@ class User
         elseif (self::colExists('suspended')) { $col = 'suspended'; }
 
         if ($col === null) {
-            // Pas de colonne de suspension : on ne casse rien.
             return true;
         }
 

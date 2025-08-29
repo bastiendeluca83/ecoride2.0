@@ -8,131 +8,93 @@ use App\Controllers\UserDashboardController;
 use App\Controllers\EmployeeController;
 use App\Controllers\AdminController;
 use App\Controllers\StaticController;
-/* Optionnel si tu as ce contrôleur : */
 use App\Controllers\TrajetController;
-/* AJOUT pour la route cron */
 use App\Controllers\CronController;
 
-/**
- * Routes EcoRide (MVC) — version “longue”
- * (pas de map/match — 1 ligne par verbe pour remonter le nombre de lignes)
- */
-
-/* =======================
-   Public / Accueil
-   ======================= */
+/* Public */
 $router->get('/',                          [HomeController::class, 'index']);
 
-/* =======================
-   Rides (recherche/listing/détail/booking)
-   ======================= */
+/* Rides */
 $router->get('/rides',                     [RideController::class, 'list']);
-$router->post('/rides',                    [RideController::class, 'list']);   // recherche via POST
-$router->post('/search',                   [RideController::class, 'list']);   // alias historique
+$router->post('/rides',                    [RideController::class, 'list']);
+$router->post('/search',                   [RideController::class, 'list']);
 $router->get('/rides/show',                [RideController::class, 'show']);
 $router->post('/rides/book',               [RideController::class, 'book']);
 
-/* Alias “trajet” (si tu as ce contrôleur) */
+/* Alias trajet (si présent) */
 if (class_exists(\App\Controllers\TrajetController::class)) {
     $router->get('/trajet',                [TrajetController::class, 'show']);
 }
 
-/* =======================
-   Pages statiques
-   ======================= */
+/* Statiques */
 $router->get('/mentions-legales',          [StaticController::class, 'mentions']);
 
-/* =======================
-   Auth
-   ======================= */
+/* Auth */
 $router->get('/signup',                    [AuthController::class, 'signupForm']);
 $router->post('/signup',                   [AuthController::class, 'signup']);
 $router->get('/login',                     [AuthController::class, 'loginForm']);
 $router->post('/login',                    [AuthController::class, 'login']);
-$router->get('/logout',                    [AuthController::class, 'logout']); // toléré GET
-$router->post('/logout',                   [AuthController::class, 'logout']); // normal POST
+$router->get('/logout',                    [AuthController::class, 'logout']);
+$router->post('/logout',                   [AuthController::class, 'logout']);
 
-/* =======================
-   Dashboard – Passerelle
-   ======================= */
+/* Dashboard – passerelle + page covoiturage publique */
 $router->get('/dashboard',                 [DashboardGatewayController::class, 'route']);
-/*Covoiturages*/
-$router->get('/covoiturage', [\App\Controllers\RideController::class, 'covoiturage']);
+$router->get('/covoiturage',               [\App\Controllers\RideController::class, 'covoiturage']);
 
-
-/* =======================
-   Espace UTILISATEUR (USER)
-   ======================= */
-/* Dashboard user */
+/* Espace user */
 $router->get('/user/dashboard',            [UserDashboardController::class, 'index']);
-
-/* Profil (canonique + alias FR/EN + legacy) */
 $router->get('/profil/edit',               [UserDashboardController::class, 'editForm']);
 $router->post('/profil/edit',              [UserDashboardController::class, 'update']);
 $router->get('/profile/edit',              [UserDashboardController::class, 'redirectToProfilEdit']);
-$router->post('/profile/edit',             [UserDashboardController::class, 'update']); // toléré
+$router->post('/profile/edit',             [UserDashboardController::class, 'update']);
 $router->get('/user/profile',              [UserDashboardController::class, 'profile']);
 $router->post('/user/profile/update',      [UserDashboardController::class, 'updateProfile']);
-$router->get('/profile',                   [UserDashboardController::class, 'profile']);         // legacy
-$router->post('/profile/update',           [UserDashboardController::class, 'updateProfile']);   // legacy
+$router->get('/profile',                   [UserDashboardController::class, 'profile']);
+$router->post('/profile/update',           [UserDashboardController::class, 'updateProfile']);
 
-/* Véhicules (form GET + actions POST) */
 $router->get('/user/vehicle',              [UserDashboardController::class, 'vehicleForm']);
 $router->get('/user/vehicle/edit',         [UserDashboardController::class, 'vehicleForm']);
 $router->post('/user/vehicle/add',         [UserDashboardController::class, 'addVehicle']);
 $router->post('/user/vehicle/edit',        [UserDashboardController::class, 'editVehicle']);
 $router->post('/user/vehicle/delete',      [UserDashboardController::class, 'deleteVehicle']);
-/* alias legacy */
 $router->get('/vehicle',                   [UserDashboardController::class, 'vehicleForm']);
 $router->get('/vehicle/edit',              [UserDashboardController::class, 'vehicleForm']);
 $router->post('/vehicle/add',              [UserDashboardController::class, 'addVehicle']);
 $router->post('/vehicle/edit',             [UserDashboardController::class, 'editVehicle']);
 $router->post('/vehicle/delete',           [UserDashboardController::class, 'deleteVehicle']);
 
-/* Trajets côté user (create + actions) */
 $router->get('/user/ride/create',          [UserDashboardController::class, 'createRide']);
 $router->post('/user/ride/create',         [UserDashboardController::class, 'createRide']);
-$router->get('/user/ride/cancel',          [UserDashboardController::class, 'cancelRide']); // utilisé dans la vue
-/* legacy */
+$router->get('/user/ride/cancel',          [UserDashboardController::class, 'cancelRide']);
 $router->get('/ride/create',               [UserDashboardController::class, 'createRide']);
 $router->post('/ride/create',              [UserDashboardController::class, 'createRide']);
 $router->get('/ride/cancel',               [UserDashboardController::class, 'cancelRide']);
 
-/* Historique + démarrer/arrêter (on accepte GET et POST pour tolérance) */
 $router->get('/user/history',              [UserDashboardController::class, 'history']);
 $router->get('/user/ride/start',           [UserDashboardController::class, 'startRide']);
 $router->post('/user/ride/start',          [UserDashboardController::class, 'startRide']);
 $router->get('/user/ride/end',             [UserDashboardController::class, 'endRide']);
 $router->post('/user/ride/end',            [UserDashboardController::class, 'endRide']);
-/* legacy */
 $router->get('/history',                   [UserDashboardController::class, 'history']);
 $router->get('/ride/start',                [UserDashboardController::class, 'startRide']);
 $router->post('/ride/start',               [UserDashboardController::class, 'startRide']);
 $router->get('/ride/end',                  [UserDashboardController::class, 'endRide']);
 $router->post('/ride/end',                 [UserDashboardController::class, 'endRide']);
 
-/* =======================
-   Espace EMPLOYÉ (EMPLOYEE)
-   ======================= */
+/* Employé */
 $router->get('/employee/dashboard',        [EmployeeController::class, 'index']);
 $router->post('/employee/reviews',         [EmployeeController::class, 'moderate']);
-$router->get('/employee',                  [EmployeeController::class, 'index']); // alias
+$router->get('/employee',                  [EmployeeController::class, 'index']);
 
-/* =======================
-   Espace ADMIN (ADMIN)
-   ======================= */
+/* Admin */
 $router->get('/admin/dashboard',           [AdminController::class, 'index']);
 $router->post('/admin/suspend',            [AdminController::class, 'suspendAccount']);
 $router->post('/admin/employee/suspend',   [AdminController::class, 'suspendEmployee']);
 $router->post('/admin/users/suspend',      [AdminController::class, 'suspendUser']);
 $router->post('/admin/employees/create',   [AdminController::class, 'createEmployee']);
-$router->get('/admin',                     [AdminController::class, 'index']); // alias
-
-/* >>> NOUVELLE ROUTE API HISTORIQUE (ADMIN) <<< */
+$router->get('/admin',                     [AdminController::class, 'index']);
 $router->get('/admin/api/credits-history', [AdminController::class, 'apiCreditsHistory']);
 
-/* =======================
-   Cron (tâches planifiées)
-   ======================= */
-$router->get('/cron/run',                  [CronController::class, 'run']);     // GET/POST OK
+/* Cron (tâches planifiées) */
+$router->get('/cron/run',                  [CronController::class, 'run']);
 $router->post('/cron/run',                 [CronController::class, 'run']);

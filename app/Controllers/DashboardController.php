@@ -27,14 +27,14 @@ final class DashboardController extends BaseController
         $q->execute([':id'=>$userId]);
         $_SESSION['user']['credits'] = (int)($q->fetchColumn() ?: 0);
 
-        // Réservations à venir
+        // Réservations à venir (>>> colonne correcte passenger_id + status)
         $reservations = [];
         try {
             $st = $pdo->prepare("
                 SELECT b.id, r.from_city, r.to_city, r.date_start, r.price
                 FROM bookings b
                 JOIN rides r ON r.id = b.ride_id
-                WHERE b.user_id = :id AND r.date_start >= NOW()
+                WHERE b.passenger_id = :id AND b.status='CONFIRMED' AND r.date_start >= NOW()
                 ORDER BY r.date_start ASC
                 LIMIT 10
             ");

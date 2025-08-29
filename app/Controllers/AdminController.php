@@ -6,7 +6,6 @@ namespace App\Controllers;
 use App\Security\Security;
 use App\Models\Stats;
 use App\Models\User;
-// >>> Ajout pour l’API historique (on réutilise ton modèle existant)
 use App\Models\AdminStats;
 
 final class AdminController extends BaseController
@@ -25,7 +24,6 @@ final class AdminController extends BaseController
         $creditsPerDay = Stats::platformCreditsPerDay($from, $to);
         $users         = User::listAll();
 
-        // CSRF pour les formulaires (suspension / création)
         if (session_status() === \PHP_SESSION_NONE) { session_start(); }
         if (empty($_SESSION['csrf'])) { $_SESSION['csrf'] = bin2hex(random_bytes(32)); }
         $csrf = $_SESSION['csrf'];
@@ -40,12 +38,10 @@ final class AdminController extends BaseController
         ]);
     }
 
-    /* ------- Alias compat (routes anciennes) ------- */
     public function addEmployee(): void     { $this->createEmployee(); }
     public function suspendEmployee(): void { $this->suspend(); }
     public function suspendAccount(): void  { $this->suspend(); }
 
-    /** POST /admin/employees/create */
     public function createEmployee(): void
     {
         Security::ensure(['ADMIN']);
@@ -61,30 +57,20 @@ final class AdminController extends BaseController
         $nom   = trim((string)($_POST['nom'] ?? ''));
         if ($email === '' || strlen($pass) < 8) { header('Location: /admin?error=invalid'); return; }
 
-        // Création via modèle User (rôle EMPLOYEE, crédits 0)
         try {
             User::createEmployee($email, $pass, $nom ?: null, null);
             header('Location: /admin?created=1');
         } catch (\Throwable $e) {
-            header('Location: /admin?error=duplicate'); // email unique, etc.
+            header('Location: /admin?error=duplicate');
         }
     }
 
-    /** POST /admin/users/suspend */
     public function suspend(): void  { $this->setSuspended(true); }
-
-    /** POST /admin/users/unsuspend */
     public function unsuspend(): void { $this->setSuspended(false); }
 
-    /* --------- NOUVEAUX alias pour coller aux routes existantes --------- */
-    /** Route config: /admin/users/suspend -> suspendUser */
     public function suspendUser(): void { $this->setSuspended(true); }
-
-    /** Route config: /admin/users/unsuspend -> unsuspendUser */
     public function unsuspendUser(): void { $this->setSuspended(false); }
-    /* -------------------------------------------------------------------- */
 
-    /* --------- Implémentation commune --------- */
     private function setSuspended(bool $suspend): void
     {
         Security::ensure(['ADMIN']);
@@ -103,11 +89,6 @@ final class AdminController extends BaseController
         header('Location: /admin?suspended=1');
     }
 
-    // =========================================================
-    // NOUVEAU — API JSON pour l’historique des crédits
-    // GET /admin/api/credits-history?days=90
-    // Réservé ADMIN
-    // =========================================================
     public function apiCreditsHistory(): void
     {
         Security::ensure(['ADMIN']);
@@ -116,13 +97,10 @@ final class AdminController extends BaseController
         $to   = (new \DateTimeImmutable('today'))->format('Y-m-d');
         $from = (new \DateTimeImmutable("today -$days days"))->format('Y-m-d');
 
-        // Récupère les lignes agrégées (peut être creux certains jours)
         $rows = AdminStats::platformCreditsHistoryDetailed($from, $to, 2);
 
-        // Index par jour
         $byDay = [];
         foreach ($rows as $r) {
-            // Compat des noms renvoyés par la requête
             $day = $r['jour'] ?? $r['day'] ?? null;
             if ($day === null) continue;
             $byDay[$day] = [
@@ -131,7 +109,6 @@ final class AdminController extends BaseController
             ];
         }
 
-        // Normalise pour avoir tous les jours de from..to
         $out = [];
         $cursor = new \DateTimeImmutable($from);
         $limit  = new \DateTimeImmutable($to);
