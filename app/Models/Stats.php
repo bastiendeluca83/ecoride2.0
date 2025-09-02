@@ -18,11 +18,20 @@ final class Stats
             $usersTotal = (int)$pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
         } catch (\Throwable $e) {}
 
-        // === Trajets à venir ===
+        // === Trajets à venir (tous) ===
         $ridesUpcoming = 0;
         try {
             $ridesUpcoming = (int)$pdo->query("
                 SELECT COUNT(*) FROM rides WHERE date_start >= NOW()
+            ")->fetchColumn();
+        } catch (\Throwable $e) {}
+
+        // === Trajets disponibles à venir (seats_left > 0) ===
+        $ridesUpcomingAvailable = 0;
+        try {
+            $ridesUpcomingAvailable = (int)$pdo->query("
+                SELECT COUNT(*) FROM rides
+                WHERE date_start >= NOW() AND GREATEST(seats_left,0) > 0
             ")->fetchColumn();
         } catch (\Throwable $e) {}
 
@@ -39,7 +48,8 @@ final class Stats
                 SELECT COUNT(*)
                 FROM bookings b
                 JOIN rides r ON r.id = b.ride_id
-                WHERE UPPER(b.status)='CONFIRMED' AND r.date_start >= NOW()
+                WHERE UPPER(b.status)='CONFIRMED'
+                  AND r.date_start >= NOW()
             ");
             $bookingsUpcoming = (int)($st ? $st->fetchColumn() : 0);
         } catch (\Throwable $e) {}
@@ -60,7 +70,6 @@ final class Stats
                 FROM rides
             ")->fetchColumn();
         } catch (\Throwable $e) {}
-        
 
         // === Crédits plateforme total (transactions libellées commission) + fallback bookings*2 ===
         $platformCreditsTotal = 0;
@@ -89,11 +98,17 @@ final class Stats
             'usersTotal'            => $usersTotal,
             'utilisateurs_actifs'   => $usersTotal,
 
-            // Trajets à venir
+            // Trajets à venir (tous)
             'rides_upcoming'        => $ridesUpcoming,
             'ridesUpcoming'         => $ridesUpcoming,
             'trajets_a_venir'       => $ridesUpcoming,
             'trajetsAVenir'         => $ridesUpcoming,
+
+            // Trajets disponibles à venir (avec places)
+            'rides_upcoming_available'  => $ridesUpcomingAvailable,
+            'ridesUpcomingAvailable'    => $ridesUpcomingAvailable,
+            'trajets_disponibles'       => $ridesUpcomingAvailable,
+            'trajetsDisponibles'        => $ridesUpcomingAvailable,
 
             // Réservations (total)
             'bookings'              => $bookingsTotal,
@@ -118,22 +133,24 @@ final class Stats
             'seatsLeft'             => $seatsLeftUpcoming,
             'seats_left_total'      => $seatsLeftUpcoming,
             'seatsLeftTotal'        => $seatsLeftUpcoming,
+            'seats_left_upcoming'   => $seatsLeftUpcoming,
             'places_restantes'      => $seatsLeftUpcoming,
             'placesRestantes'       => $seatsLeftUpcoming,
             'places_restantes_total'=> $seatsLeftUpcoming,
             'placesRestantesTotal'  => $seatsLeftUpcoming,
 
-            // Places restantes (tous trajets) — au cas où la vue regarde “all”
+            // Places restantes (tous trajets)
             'seats_left_all'        => $seatsLeftAll,
             'seatsLeftAll'          => $seatsLeftAll,
             'places_restantes_all'  => $seatsLeftAll,
             'placesRestantesAll'    => $seatsLeftAll,
 
-            // Crédits plateforme total
+            // Crédits plateforme (total)
             'platform_credits'      => $platformCreditsTotal,
             'platformCredits'       => $platformCreditsTotal,
             'platform_credits_total'=> $platformCreditsTotal,
             'platformCreditsTotal'  => $platformCreditsTotal,
+            'platform_total'        => $platformCreditsTotal, // alias pour la vue
             'credits_plateforme'    => $platformCreditsTotal,
             'creditsPlateforme'     => $platformCreditsTotal,
             'total_credits'         => $platformCreditsTotal,
@@ -145,6 +162,7 @@ final class Stats
 
     public static function ridesPerDay(string $from, string $to): array
     {
+        // Historique complet (on ne filtre pas les places)
         $sql = "SELECT
                     DATE(date_start) AS jour,
                     DATE(date_start) AS day,
@@ -195,14 +213,13 @@ final class Stats
         $st->execute([':f'=>$from, ':t'=>$to]);
         return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
-  public static function totalPlatformPlace(): int
-{
-    $pdo = self::pdo();
 
-    $sql  = "SELECT COALESCE(SUM(GREATEST(seats_left, 0)), 0) FROM rides"; // si la colonne est 'seats_left'
-
-    $stmt = $pdo->query($sql);
-    return (int) ($stmt ? $stmt->fetchColumn() : 0);
-}
-
+    // (Resté pour compatibilité éventuelle)
+    public static function totalPlatformPlace(): int
+    {
+        $pdo = self::pdo();
+        $sql  = "SELECT COALESCE(SUM(GREATEST(seats_left, 0)), 0) FROM rides";
+        $stmt = $pdo->query($sql);
+        return (int) ($stmt ? $stmt->fetchColumn() : 0);
+    }
 }

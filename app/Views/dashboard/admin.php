@@ -23,23 +23,27 @@ if (!function_exists('e')) { function e($s){ return htmlspecialchars((string)$s,
       <h6 class="text-muted mb-1">Utilisateurs actifs</h6>
       <p class="display-6 mb-0"><strong><?= (int)($kpis['users_active'] ?? 0) ?></strong></p>
     </div></div></div>
+
     <div class="col-md-2"><div class="card shadow-sm"><div class="card-body">
-      <h6 class="text-muted mb-1">Trajets à venir</h6>
-      <p class="display-6 mb-0"><strong><?= (int)($kpis['rides_upcoming'] ?? 0) ?></strong></p>
+      <h6 class="text-muted mb-1">Trajets disponibles (à venir)</h6>
+      <p class="display-6 mb-0">
+        <strong><?= (int)($kpis['rides_upcoming_available'] ?? $kpis['trajets_disponibles'] ?? 0) ?></strong>
+      </p>
     </div></div></div>
+
     <div class="col-md-2"><div class="card shadow-sm"><div class="card-body">
-      <h6 class="text-muted mb-1">Réservations</h6>
-      <p class="display-6 mb-0"><strong><?= (int)($kpis['bookings_total'] ?? 0) ?></strong></p>
+      <h6 class="text-muted mb-1">Réservations (à venir)</h6>
+      <p class="display-6 mb-0"><strong><?= (int)($kpis['bookings_upcoming'] ?? 0) ?></strong></p>
     </div></div></div>
+
     <div class="col-md-3"><div class="card shadow-sm"><div class="card-body">
-      <h6 class="text-muted mb-1">Places restantes (total)</h6>
-<p class="display-6 mb-0">
-  <strong><?= (int)($totalPlatformPlace ?? 0) ?></strong>
-</p>
+      <h6 class="text-muted mb-1">Places restantes (à venir)</h6>
+      <p class="display-6 mb-0"><strong><?= (int)($kpis['seats_left'] ?? $kpis['seats_left_upcoming'] ?? 0) ?></strong></p>
     </div></div></div>
+
     <div class="col-md-3"><div class="card shadow-sm"><div class="card-body">
       <h6 class="text-muted mb-1">Crédits plateforme (total)</h6>
-      <p class="display-6 mb-0"><strong><?= (int)($kpis['platform_total'] ?? 0) ?></strong></p>
+      <p class="display-6 mb-0"><strong><?= (int)($kpis['platform_credits'] ?? $kpis['platform_total'] ?? 0) ?></strong></p>
     </div></div></div>
   </div>
 
@@ -54,7 +58,10 @@ if (!function_exists('e')) { function e($s){ return htmlspecialchars((string)$s,
             <thead><tr><th>Jour</th><th>Nombre</th></tr></thead>
             <tbody>
             <?php foreach (($ridesPerDay ?? []) as $r): ?>
-              <tr><td><?= e($r['day']) ?></td><td><?= e($r['rides_count']) ?></td></tr>
+              <tr>
+                <td><?= e($r['day'] ?? $r['jour'] ?? '') ?></td>
+                <td><?= e($r['rides_count'] ?? $r['nombre'] ?? $r['n'] ?? 0) ?></td>
+              </tr>
             <?php endforeach; if (empty($ridesPerDay)): ?>
               <tr><td colspan="2" class="text-muted">Aucune donnée.</td></tr>
             <?php endif; ?>
@@ -63,6 +70,7 @@ if (!function_exists('e')) { function e($s){ return htmlspecialchars((string)$s,
         </div>
       </div></div>
     </div>
+
     <div class="col-md-6">
       <div class="card shadow-sm"><div class="card-body">
         <h5 class="card-title">Crédits gagnés / jour (14j)</h5>
@@ -71,7 +79,7 @@ if (!function_exists('e')) { function e($s){ return htmlspecialchars((string)$s,
             <thead><tr><th>Jour</th><th>Crédits</th></tr></thead>
             <tbody>
             <?php foreach (($creditsPerDay ?? []) as $r): ?>
-              <tr><td><?= e($r['day']) ?></td><td><?= e($r['credits']) ?></td></tr>
+              <tr><td><?= e($r['day'] ?? $r['jour'] ?? '') ?></td><td><?= e($r['credits'] ?? 0) ?></td></tr>
             <?php endforeach; if (empty($creditsPerDay)): ?>
               <tr><td colspan="2" class="text-muted">Aucune donnée.</td></tr>
             <?php endif; ?>
@@ -196,7 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const res  = await fetch(`/admin/api/credits-history?days=${encodeURIComponent(days)}`, { credentials: 'same-origin' });
     const json = await res.json();
     // labels & série
-    const labels  = json.data.map(r => r.day);
+    const labels  = json.data.map(r => r.day || r.jour);
     const credits = json.data.map(r => r.credits);
 
     // Tooltips incluent les ride_ids
@@ -223,7 +231,7 @@ document.addEventListener('DOMContentLoaded', () => {
             title: { display: true, text: 'Jour' },
             ticks: {
               callback: function(value) {
-                const raw = this.getLabelForValue(value); // récupère 'YYYY-MM-DD'
+                const raw = this.getLabelForValue(value); // 'YYYY-MM-DD'
                 return fmtFR(raw);
               }
             }
@@ -233,7 +241,6 @@ document.addEventListener('DOMContentLoaded', () => {
         plugins: {
           tooltip: {
             callbacks: {
-              // Titre du tooltip au format FR
               title: (items) => items.length ? fmtFR(items[0].label) : '',
               afterBody: (items) => {
                 const i = items[0].dataIndex;
