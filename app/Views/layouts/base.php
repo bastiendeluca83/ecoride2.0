@@ -47,36 +47,40 @@ if (isset($_GET['error'])) {
 $flashes = $_SESSION['flash'] ?? [];
 unset($_SESSION['flash']);
 
-/* Bannière 'profil incomplet' */
+/* Bannière 'profil incomplet' — désormais UNIQUEMENT pour USER */
 $profileBannerHtml = '';
-try {
-    if ($user && !empty($user['id'])) {
-        $fresh = \App\Models\User::findById((int)$user['id']);
-        if ($fresh) {
-            $_SESSION['user'] = $user = array_merge($user, $fresh);
+$showProfileBanner = ($role === 'USER'); // <-- condition centrale
+
+if ($showProfileBanner) {
+    try {
+        if ($user && !empty($user['id'])) {
+            $fresh = \App\Models\User::findById((int)$user['id']);
+            if ($fresh) {
+                $_SESSION['user'] = $user = array_merge($user, $fresh);
+            }
+            $check = \App\Models\User::isProfileComplete((int)$user['id']);
+            if (!$check['complete']) {
+                $labels = [
+                    'nom'=>'nom','prenom'=>'prénom','email'=>'email','telephone'=>'téléphone',
+                    'adresse'=>'adresse','avatar'=>'photo de profil',
+                    'preferences'=>'préférences (fumeur, animaux, musique, discussion, clim)'
+                ];
+                $missing = array_map(fn($k)=>$labels[$k] ?? $k, $check['missing']);
+                $txt = "Complétez votre profil : ".htmlspecialchars(implode(', ', $missing)).".";
+                $profileBannerHtml = '
+                <div class="alert alert-warning border-0 rounded-0 mb-0 alert-dismissible fade show" role="alert">
+                  <div class="container d-flex flex-wrap align-items-center gap-2">
+                    <i class="fas fa-user-edit me-1"></i>
+                    <strong>Profil incomplet.</strong>
+                    <span class="me-2">'.$txt.'</span>
+                    <a class="btn btn-sm btn-outline-dark" href="/profil/edit">Compléter maintenant</a>
+                  </div>
+                  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
+                </div>';
+            }
         }
-        $check = \App\Models\User::isProfileComplete((int)$user['id']);
-        if (!$check['complete']) {
-            $labels = [
-                'nom'=>'nom','prenom'=>'prénom','email'=>'email','telephone'=>'téléphone',
-                'adresse'=>'adresse','avatar'=>'photo de profil',
-                'preferences'=>'préférences (fumeur, animaux, musique, discussion, clim)'
-            ];
-            $missing = array_map(fn($k)=>$labels[$k] ?? $k, $check['missing']);
-            $txt = "Complétez votre profil : ".htmlspecialchars(implode(', ', $missing)).".";
-            $profileBannerHtml = '
-            <div class="alert alert-warning border-0 rounded-0 mb-0 alert-dismissible fade show" role="alert">
-              <div class="container d-flex flex-wrap align-items-center gap-2">
-                <i class="fas fa-user-edit me-1"></i>
-                <strong>Profil incomplet.</strong>
-                <span class="me-2">'.$txt.'</span>
-                <a class="btn btn-sm btn-outline-dark" href="/profil/edit">Compléter maintenant</a>
-              </div>
-              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
-            </div>';
-        }
-    }
-} catch (\Throwable $e) { /* ignore */ }
+    } catch (\Throwable $e) { /* ignore */ }
+}
 ?>
 <!doctype html>
 <html lang="fr">
