@@ -17,4 +17,17 @@ return [
   'app' => [
     'base_url' => '/',
   ],
+    'mail' => [
+    'host'       => getenv('MAIL_HOST') ?: 'localhost',
+    'port'       => (int)(getenv('MAIL_PORT') ?: 587),
+    'username'   => getenv('MAIL_USERNAME') ?: '',
+    'password'   => getenv('MAIL_PASSWORD') ?: '',
+    'from_email' => getenv('MAIL_FROM_ADDRESS') ?: 'no-reply@ecoride.fr',
+    'from_name'  => getenv('MAIL_FROM_NAME') ?: 'EcoRide',
+    // 'tls' | 'ssl' | ''  (si 'tls' => STARTTLS, si 'ssl' => SMTPS)
+    'encryption' => getenv('MAIL_ENCRYPTION') ?: 'tls',
+    // 0 = prod ; 2 = debug verbeux dans error_log
+    'debug'      => (int)(getenv('MAIL_DEBUG') ?: 0),
+  ],
+
 ];

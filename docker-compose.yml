@@ -13,6 +13,20 @@ services:
       MONGO_DB: ecoride
       TIMEZONE: Europe/Paris
       DEBUG: "1"
+
+      # --- AJOUTS SMTP (PHPMailer) ---
+      # Prod/SMTP réel 
+      MAIL_HOST: smtp.gmail.com
+      MAIL_PORT: "587"              # 587 = STARTTLS ; 465 = SMTPS
+      MAIL_USERNAME: 	ecoride.demo@gmail.com
+      MAIL_PASSWORD: fjsi deqa cbng kdgo
+      MAIL_FROM_ADDRESS: ecoride.demo@gmail.com
+      MAIL_FROM_NAME: EcoRide
+      MAIL_ENCRYPTION: tls          
+      MAIL_DEBUG: "0"               
+
+     
+
     volumes:
       - ./:/var/www/html
       - ./docker/php/php.ini/php.ini:/usr/local/etc/php/conf.d/zz-custom.ini:ro
@@ -21,7 +35,8 @@ services:
       db:
         condition: service_healthy
       mongo:
-        condition: service_healthy
+        condition: service_started
+     
     restart: unless-stopped
     networks:
       - ecoride_network
@@ -79,6 +94,17 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - ecoride_network
+
+ 
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: ecoride_mailhog
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # UI
     restart: unless-stopped
     networks:
       - ecoride_network
