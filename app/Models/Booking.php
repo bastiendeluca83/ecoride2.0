@@ -99,7 +99,35 @@ class Booking
         return self::all($sql, [':r' => $rideId]);
     }
 
-    /** >>> Compte des trajets terminés (en tant que passager confirmé) pour l’utilisateur connecté. */
+    /**
+     * Passagers confirmés d’un trajet (avec email) — utilisé par GeneralController::endRide()
+     * Retourne : id, email, display_name, avatar_path
+     */
+    public static function passengersWithEmailForRide(int $rideId): array
+    {
+        $sql = "
+            SELECT
+                u.id,
+                u.email,
+                TRIM(
+                    COALESCE(
+                        CONCAT(u.prenom, ' ', u.nom),
+                        CONCAT(u.first_name, ' ', u.last_name),
+                        u.pseudo,
+                        u.email
+                    )
+                ) AS display_name,
+                u.avatar_path
+            FROM bookings b
+            JOIN users u ON u.id = b.passenger_id
+            WHERE b.ride_id = :r
+              AND UPPER(b.status) = 'CONFIRMED'
+            ORDER BY b.created_at ASC
+        ";
+        return self::all($sql, [':r' => $rideId]);
+    }
+
+    /** Compte des trajets terminés (passager confirmé) pour l’utilisateur */
     public static function countCompletedByPassenger(int $userId): int
     {
         $sql = "SELECT COUNT(*)

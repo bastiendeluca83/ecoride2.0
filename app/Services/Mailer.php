@@ -12,29 +12,22 @@ final class Mailer
 
     public function __construct()
     {
-        // -------- Chargement robuste de la config ----------
-        // /var/www/html/app
+        // Localise config/app.php
         $rootApp = dirname(__DIR__);
-        // /var/www/html
         $root    = dirname($rootApp);
-
         $try = [
-            $rootApp . '/config/app.php', // app/config/app.php
-            $rootApp . '/Config/app.php', // app/Config/app.php
-            $root    . '/config/app.php', // config/app.php (racine)
-            $root    . '/Config/app.php', // Config/app.php (racine)
+            $rootApp . '/config/app.php',
+            $rootApp . '/Config/app.php',
+            $root    . '/config/app.php',
+            $root    . '/Config/app.php',
         ];
-
         $all = null;
-        foreach ($try as $p) {
-            if (is_file($p)) { $all = require $p; break; }
-        }
-        if (!$all || !is_array($all)) {
-            throw new \RuntimeException('Config app.php introuvable. Chemins testés: ' . implode(', ', $try));
+        foreach ($try as $p) { if (is_file($p)) { $all = require $p; break; } }
+        if (!is_array($all)) {
+            throw new \RuntimeException('Config app.php introuvable: ' . implode(', ', $try));
         }
         $cfg = $all['mail'] ?? [];
 
-        // --------------- PHPMailer -----------------
         $this->m = new PHPMailer(true);
         $this->m->isSMTP();
         $this->m->Host    = (string)($cfg['host'] ?? 'localhost');
@@ -42,31 +35,30 @@ final class Mailer
         $this->m->CharSet = 'UTF-8';
         $this->m->isHTML(true);
 
-        // From par défaut
+        // From
         $fromEmail = (string)($cfg['from_email'] ?? 'no-reply@ecoride.fr');
         $fromName  = (string)($cfg['from_name']  ?? 'EcoRide');
         $this->m->setFrom($fromEmail, $fromName);
 
-        // --- Auth seulement si username défini (MailHog n'en a pas) ---
-        $hasUser = !empty($cfg['username']);
+        // Auth si username non vide
+        $hasUser = ((string)($cfg['username'] ?? '') !== '');
         $this->m->SMTPAuth = $hasUser;
-        $this->m->Username = $hasUser ? (string)$cfg['username'] : '';
-        $this->m->Password = $hasUser ? (string)($cfg['password'] ?? '') : '';
-
-        // --- Chiffrement facultatif ---
-        // MailHog (local) => MAIL_ENCRYPTION vide -> aucun chiffrement.
-        // Gmail STARTTLS => encryption=tls, port=587
-        // SMTPS (SSL)    => encryption=ssl, port=465
-        $enc = strtolower(trim((string)($cfg['encryption'] ?? '')));
-        if ($enc === 'ssl') {
-            $this->m->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;   // 465
-        } elseif ($enc === '') {
-            $this->m->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS; // 587
-        } else {
-            $this->m->SMTPSecure = false; // aucun (MailHog)
+        if ($hasUser) {
+            $this->m->Username = (string)$cfg['username'];
+            $this->m->Password = (string)($cfg['password'] ?? '');
         }
 
-        // Debug optionnel (dans error_log du conteneur)
+        // Chiffrement
+        $enc = strtolower(trim((string)($cfg['encryption'] ?? '')));
+        if ($enc === 'ssl') {
+            $this->m->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;    // 465
+        } elseif ($enc === 'tls') {
+            $this->m->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS; // 587
+        } else {
+            $this->m->SMTPSecure = false; // MailHog (pas de TLS)
+        }
+
+        // Debug (optionnel)
         $debug = (int)($cfg['debug'] ?? 0);
         if ($debug > 0) {
             $this->m->SMTPDebug   = 2;
@@ -89,9 +81,8 @@ final class Mailer
         }
     }
 
-    /* ----- Cas EcoRide ----- */
+    /* ========= Cas EcoRide ========= */
 
-    /** Mail au chauffeur à la publication d'un trajet */
     public function sendRidePublished(array $driver, array $ride): bool
     {
         $subject = "Votre trajet a été publié ✅";
@@ -104,7 +95,6 @@ final class Mailer
         );
     }
 
-    /** Mail au passager après réservation (confirmation) */
     public function sendBookingConfirmation(array $passenger, array $ride, array $driver): bool
     {
         $subject = "Confirmation de votre réservation 🚗";
@@ -117,7 +107,6 @@ final class Mailer
         );
     }
 
-    /** Mail au chauffeur quand un passager réserve (notification) */
     public function sendDriverNewReservation(array $driver, array $ride, array $passenger): bool
     {
         $subject = "Nouvelle réservation sur votre trajet ✉️";
@@ -130,14 +119,29 @@ final class Mailer
         );
     }
 
+    /** >>> Invitation à laisser un avis (après fin de trajet) */
+    public function sendReviewInvite(array $passenger, array $ride, array $driver, string $link): bool
+    {
+        $subject = "Votre avis sur le trajet “{$ride['from_city']} → {$ride['to_city']}”";
+        $html    = $this->render('review_invite', [
+            'passenger' => $passenger,
+            'ride'      => $ride,
+            'driver'    => $driver,
+            'link'      => $link,
+        ]);
+        return $this->send(
+            (string)$passenger['email'],
+            (string)($passenger['pseudo'] ?? 'Passager'),
+            $subject,
+            $html
+        );
+    }
+
     private function render(string $template, array $vars): string
     {
-        // NB : ton projet utilise 'Views' (V majuscule). Si c'est 'views', adapte ici.
         $file = dirname(__DIR__) . "/Views/emails/{$template}.php";
         if (!is_file($file)) return "<p>Template manquant: {$template}</p>";
         extract($vars, EXTR_SKIP);
-        ob_start();
-        include $file;
-        return (string)ob_get_clean();
+        ob_start(); include $file; return (string)ob_get_clean();
     }
 }

@@ -8,26 +8,20 @@ use PDO;
 
 class RideController extends BaseController
 {
-    /** Accueil (form de recherche) */
     public function home(): void
     {
         $this->render('home/index', ['title' => 'EcoRide – Covoiturage écoresponsable']);
     }
 
-    /**
-     * Résultats + filtres
-     */
     public function list(): void
     {
         $pdo = Sql::pdo();
 
-        // Recherche de base
         $from    = trim($_GET['from_city']  ?? $_POST['from_city']  ?? '');
         $to      = trim($_GET['to_city']    ?? $_POST['to_city']    ?? '');
         $date    = trim($_GET['date_start'] ?? $_POST['date_start'] ?? '');
         $ecoOnly = !empty($_GET['eco_only'] ?? $_POST['eco_only']   ?? '');
 
-        // Filtres
         $priceMax    = isset($_GET['price_max'])    ? (int)$_GET['price_max']    : null;
         $durationMax = isset($_GET['duration_max']) ? (int)$_GET['duration_max'] : null;
         $minNote     = isset($_GET['min_note'])     ? (float)$_GET['min_note']   : null;
@@ -49,10 +43,8 @@ class RideController extends BaseController
             $where[] = "TIMESTAMPDIFF(HOUR, r.date_start, r.date_end) <= :dmax";
             $params[':dmax'] = $durationMax;
         }
-        if ($minNote !== null && $minNote > 0) {
-            $where[] = "(SELECT ROUND(AVG(rv.note),1) FROM reviews rv WHERE rv.driver_id = r.driver_id) >= :minn";
-            $params[':minn'] = $minNote;
-        }
+        // NB: le filtre minNote s'appuyait sur une table SQL 'reviews' — on l'ignore côté SQL
+        // et on le gèrera éventuellement plus tard via un système de cache/colonne dénormalisée.
 
         $sql = "
         SELECT
@@ -77,7 +69,6 @@ class RideController extends BaseController
         $st->execute($params);
         $rides = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-        // Suggestion si pas de résultat
         $suggestion = null;
         if (!$rides && $from !== '' && $to !== '') {
             $st2 = $pdo->prepare("
@@ -99,12 +90,10 @@ class RideController extends BaseController
         ]);
     }
 
-    /** Page publique “/covoiturage” */
     public function covoiturage(): void
     {
         $pdo = Sql::pdo();
 
-        // À venir
         $st = $pdo->prepare("
             SELECT
               r.*,
@@ -122,7 +111,6 @@ class RideController extends BaseController
         $st->execute();
         $ridesUpcoming = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-        // Passés 30 jours
         $st2 = $pdo->prepare("
             SELECT
               r.*,
@@ -146,7 +134,6 @@ class RideController extends BaseController
         ]);
     }
 
-    /** Détail d’un covoiturage */
     public function show(): void
     {
         $pdo = Sql::pdo();
@@ -186,51 +173,35 @@ class RideController extends BaseController
             return;
         }
 
-        // Avis (optionnel)
+        // Avis depuis Mongo
         $reviews = [];
         $avgNote = null;
         try {
-            $q = $pdo->prepare("
-                SELECT note, comment, created_at
-                FROM reviews
-                WHERE driver_id = :uid
-                ORDER BY created_at DESC
-                LIMIT 10
-            ");
-            $q->execute([':uid' => $ride['driver_id']]);
-            $reviews = $q->fetchAll(PDO::FETCH_ASSOC);
-
-            $avg = $pdo->prepare("SELECT ROUND(AVG(note),1) FROM reviews WHERE driver_id = :uid");
-            $avg->execute([':uid' => $ride['driver_id']]);
-            $avgNote = $avg->fetchColumn() ?: null;
-        } catch (\Throwable $e) { /* table absente => on ignore */ }
+            $rm = new \App\Models\ReviewModel();
+            $reviews = $rm->findByDriverApproved((int)$ride['driver_id'], 10);
+            $avgNote = $rm->avgForDriver((int)$ride['driver_id']);
+        } catch (\Throwable $e) {
+            // Mongo indispo => pas d'avis
+        }
 
         $this->render('rides/show', compact('ride','reviews','avgNote'));
     }
 
-    /**
-     * Choisit des libellés de transaction compatibles avec la colonne `transactions.type`
-     * - si ENUM: on prend les valeurs présentes (BOOK/DEBIT/EARN/FEE/COMMISSION…)
-     * - si VARCHAR(n): on tronque/choisit un libellé qui tient dans n
-     */
     private function pickTxLabels(PDO $pdo): array
     {
         $col = $pdo->query("SHOW COLUMNS FROM transactions LIKE 'type'")->fetch(PDO::FETCH_ASSOC) ?: [];
         $type = (string)($col['Type'] ?? '');
 
-        // Candidats par sémantique
         $candBooking = ['BOOKING_DEBIT','BOOKING','RESERVATION','DEBIT','BOOK','PAYMENT'];
         $candEarn    = ['EARN_DRIVER','EARN','GAIN','CREDIT','DRIVER_EARN'];
         $candFee     = ['PLATFORM_FEE','FEE','COMMISSION','PLATFORM','PLFEE'];
 
-        // ENUM ?
         if (stripos($type, 'enum(') === 0) {
             if (preg_match('/enum\((.*)\)/i', $type, $m)) {
                 $vals = array_map(fn($s)=>trim($s, " '\""), explode(',', $m[1]));
                 $pick = function(array $cands) use ($vals) {
                     foreach ($cands as $c) {
                         if (in_array($c, $vals, true)) return $c;
-                        // aussi tenter versions courtes
                         if (in_array(strtoupper($c), $vals, true)) return strtoupper($c);
                     }
                     return $vals[0] ?? 'TX';
@@ -243,7 +214,6 @@ class RideController extends BaseController
             }
         }
 
-        // VARCHAR(n) ?
         if (preg_match('/varchar\((\d+)\)/i', $type, $m)) {
             $n = (int)$m[1];
             $fit = function(array $cands) use ($n) {
@@ -259,11 +229,9 @@ class RideController extends BaseController
             ];
         }
 
-        // Autre type: valeurs courtes par défaut
         return ['booking'=>'BOOK','earn'=>'EARN','fee'=>'FEE'];
     }
 
-    /** Bouton Participer : réservation + répartition 8/2 + transactions */
     public function book(): void
     {
         if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST' || empty($_POST['ride_id'])) {
@@ -283,7 +251,6 @@ class RideController extends BaseController
         try {
             $pdo->beginTransaction();
 
-            // 1) Verrouille le trajet
             $st = $pdo->prepare("SELECT * FROM rides WHERE id = :id FOR UPDATE");
             $st->execute([':id'=>$rideId]);
             $ride = $st->fetch(PDO::FETCH_ASSOC);
@@ -297,7 +264,6 @@ class RideController extends BaseController
                 throw new \RuntimeException('Plus de places disponibles.');
             }
 
-            // 2) Déjà réservé ?
             $st = $pdo->prepare("SELECT 1 FROM bookings WHERE ride_id=:r AND passenger_id=:u AND status='CONFIRMED' LIMIT 1");
             $st->execute([':r'=>$rideId, ':u'=>$userId]);
             if ($st->fetchColumn()) {
@@ -307,7 +273,6 @@ class RideController extends BaseController
             $price = (int)$ride['price'];
             $driverAmount = max(0, $price - $platformFee);
 
-            // 3) Vérifie crédits passager (lock)
             $st = $pdo->prepare("SELECT credits FROM users WHERE id = :id FOR UPDATE");
             $st->execute([':id'=>$userId]);
             $creditsPassenger = (int)($st->fetchColumn() ?: 0);
@@ -315,14 +280,11 @@ class RideController extends BaseController
                 throw new \RuntimeException('Crédits insuffisants.');
             }
 
-            // Détermine l'utilisateur "plateforme" (ADMIN), fallback conducteur
             $platformUserId = (int)($pdo->query("SELECT id FROM users WHERE role='ADMIN' ORDER BY id ASC LIMIT 1")->fetchColumn() ?: 0);
             if ($platformUserId === 0) { $platformUserId = (int)$ride['driver_id']; }
 
-            // Libellés compatibles pour transactions.type
             $tx = $this->pickTxLabels($pdo);
 
-            // 4) Crée la réservation
             $bst = $pdo->prepare("
                 INSERT INTO bookings(ride_id,passenger_id,status,credits_spent,created_at)
                 VALUES(:r,:u,'CONFIRMED',:c,NOW())
@@ -330,7 +292,6 @@ class RideController extends BaseController
             $bst->execute([':r'=>$rideId, ':u'=>$userId, ':c'=>$price]);
             $bookingId = (int)$pdo->lastInsertId();
 
-            // 5) Décrémente places
             $ust = $pdo->prepare("
                 UPDATE rides SET seats_left = seats_left - 1
                 WHERE id = :id AND seats_left >= 1
@@ -340,33 +301,26 @@ class RideController extends BaseController
                 throw new \RuntimeException('Plus de places disponibles.');
             }
 
-            // 6) Mouvements crédits
-            // débit passager
             $pdo->prepare("UPDATE users SET credits = credits - :c WHERE id = :id")
                 ->execute([':c'=>$price, ':id'=>$userId]);
 
-            // crédit conducteur
             $pdo->prepare("UPDATE users SET credits = credits + :c WHERE id = :id")
                 ->execute([':c'=>$driverAmount, ':id'=>(int)$ride['driver_id']]);
 
-            // 7) Transactions
             $insTx = $pdo->prepare("
                 INSERT INTO transactions(user_id, booking_id, ride_id, type, montant, description, created_at)
                 VALUES(:uid,:bid,:rid,:type,:amount,:descr,NOW())
             ");
-            // débit passager
             $insTx->execute([
                 ':uid'=>$userId, ':bid'=>$bookingId, ':rid'=>$rideId,
                 ':type'=>$tx['booking'], ':amount'=>-$price,
                 ':descr'=>'Réservation covoiturage #'.$rideId
             ]);
-            // revenu conducteur
             $insTx->execute([
                 ':uid'=>(int)$ride['driver_id'], ':bid'=>$bookingId, ':rid'=>$rideId,
                 ':type'=>$tx['earn'], ':amount'=>$driverAmount,
                 ':descr'=>'Gain conducteur ride #'.$rideId
             ]);
-            // commission plateforme
             $insTx->execute([
                 ':uid'=>$platformUserId, ':bid'=>$bookingId, ':rid'=>$rideId,
                 ':type'=>$tx['fee'], ':amount'=>$platformFee,

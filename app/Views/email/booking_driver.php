@@ -1,15 +1,22 @@
-<?php if (!function_exists('e')) { function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); } } ?>
-<div style="font-family:Arial,Helvetica,sans-serif;line-height:1.5">
-  <h2>Bonjour <?= e($driver['pseudo'] ?? $driver['nom'] ?? '') ?>,</h2>
-  <p>Vous avez une <strong>nouvelle réservation</strong> sur votre trajet.</p>
-  <h3 style="margin-top:16px">Détails</h3>
+<?php
+/** @var array $driver */
+/** @var array $ride */
+/** @var array $passenger */
+function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
+?>
+<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:640px;margin:auto;">
+  <h2>Nouvelle réservation ✉️</h2>
+  <p>Bonjour <?= e($driver['pseudo'] ?? $driver['nom'] ?? '') ?>,</p>
+  <p><?= e($passenger['pseudo'] ?? $passenger['nom'] ?? 'Un passager') ?> a réservé une place sur votre trajet
+     <strong><?= e($ride['from_city'] ?? '') ?> → <?= e($ride['to_city'] ?? '') ?></strong>.</p>
   <ul>
-    <li><strong>Passager :</strong> <?= e($passenger['pseudo'] ?? $passenger['nom'] ?? '') ?> (<?= e($passenger['email'] ?? '') ?>)</li>
-    <li><strong>Départ :</strong> <?= e($ride['start_city'] ?? $ride['start_address'] ?? '') ?></li>
-    <li><strong>Arrivée :</strong> <?= e($ride['end_city'] ?? $ride['end_address'] ?? '') ?></li>
-    <li><strong>Date/Heure :</strong> <?= e($ride['departure_at'] ?? '') ?></li>
-    <li><strong>Places restantes :</strong> <?= e($ride['seats_left'] ?? ($ride['seats'] ?? '')) ?></li>
+    <li>Départ : <strong><?= e($ride['date_start'] ?? '') ?></strong></li>
+    <?php if (!empty($ride['date_end'])): ?>
+      <li>Arrivée : <strong><?= e($ride['date_end']) ?></strong></li>
+    <?php endif; ?>
+    <li>Prix : <strong><?= (int)($ride['price'] ?? 0) ?> crédits</strong></li>
   </ul>
-  <p>Pensez à démarrer le trajet au moment du départ.</p>
-  <p>— L’équipe EcoRide</p>
+  <p>Rendez-vous dans votre tableau de bord pour voir la liste des participants.</p>
+  <hr>
+  <p style="color:#888">EcoRide</p>
 </div>

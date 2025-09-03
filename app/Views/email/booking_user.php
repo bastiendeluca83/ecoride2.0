@@ -1,14 +1,22 @@
-<?php if (!function_exists('e')) { function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); } } ?>
-<div style="font-family:Arial,Helvetica,sans-serif;line-height:1.5">
-  <h2>Bonjour <?= e($passenger['pseudo'] ?? $passenger['nom'] ?? '') ?>,</h2>
-  <p>Votre <strong>réservation</strong> a bien été enregistrée ✅</p>
-  <h3 style="margin-top:16px">Détails du trajet</h3>
+<?php
+/** @var array $passenger */
+/** @var array $ride */
+/** @var array $driver */
+function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
+?>
+<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:640px;margin:auto;">
+  <h2>Réservation confirmée ✅</h2>
+  <p>Bonjour <?= e($passenger['pseudo'] ?? $passenger['nom'] ?? '') ?>,</p>
+  <p>Votre place est réservée sur le trajet <strong><?= e($ride['from_city'] ?? '') ?> → <?= e($ride['to_city'] ?? '') ?></strong>.</p>
   <ul>
-    <li><strong>Chauffeur :</strong> <?= e($driver['pseudo'] ?? $driver['nom'] ?? '') ?></li>
-    <li><strong>Départ :</strong> <?= e($ride['start_city'] ?? $ride['start_address'] ?? '') ?></li>
-    <li><strong>Arrivée :</strong> <?= e($ride['end_city'] ?? $ride['end_address'] ?? '') ?></li>
-    <li><strong>Date/Heure :</strong> <?= e($ride['departure_at'] ?? '') ?></li>
-    <li><strong>Prix payé :</strong> <?= e($ride['price'] ?? '') ?> crédits</li>
+    <li>Départ : <strong><?= e($ride['date_start'] ?? '') ?></strong></li>
+    <?php if (!empty($ride['date_end'])): ?>
+      <li>Arrivée : <strong><?= e($ride['date_end']) ?></strong></li>
+    <?php endif; ?>
+    <li>Conducteur : <strong><?= e($driver['display_name'] ?? $driver['nom'] ?? '') ?></strong></li>
+    <li>Prix payé : <strong><?= (int)($ride['price'] ?? 0) ?> crédits</strong></li>
   </ul>
-  <p>Merci d’utiliser EcoRide 💚</p>
+  <p>Bon trajet !</p>
+  <hr>
+  <p style="color:#888">EcoRide</p>
 </div>

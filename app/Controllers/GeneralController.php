@@ -9,29 +9,27 @@ use App\Models\Ride;
 use App\Models\Booking;
 use App\Models\Vehicle;
 use App\Models\UserPreferences;
-use App\Models\Review;
+use App\Services\Mailer;
 
-final class UserDashboardController extends BaseController
+final class GeneralController extends BaseController
 {
     public function index(): void
     {
         Security::ensure(['USER']);
         $uid  = (int)($_SESSION['user']['id'] ?? 0);
 
-        // Rafraîchit crédits & profil depuis la BDD
+        // Rafraîchit l'utilisateur (crédits, etc.)
         $fresh = $uid ? User::findById($uid) : null;
         if ($fresh) {
             $_SESSION['user'] = array_merge($_SESSION['user'] ?? [], $fresh);
         }
         $user = $_SESSION['user'] ?? ['nom'=>'Utilisateur','credits'=>0,'total_rides'=>0];
 
-        // Données SQL pour dashboard
+        // Données tableau de bord
         $reservations = $uid ? Booking::forPassengerUpcoming($uid) : [];
-        $rides       = $uid ? Ride::forDriverUpcoming($uid) : [];
-        $vehicles    = $uid ? Vehicle::forUser($uid) : [];
+        $rides        = $uid ? Ride::forDriverUpcoming($uid) : [];
+        $vehicles     = $uid ? Vehicle::forUser($uid) : [];
 
-        /* === AJOUTS === */
-        // 1) Conducteur pour chaque réservation (Mes réservations)
         if (!empty($reservations)) {
             foreach ($reservations as &$res) {
                 $rideId = (int)($res['ride_id'] ?? $res['id'] ?? 0);
@@ -39,19 +37,18 @@ final class UserDashboardController extends BaseController
             }
             unset($res);
         }
-        // 2) Participants confirmés pour chaque trajet conducteur
         if (!empty($rides)) {
             foreach ($rides as &$r) {
                 $r['participants'] = Ride::passengersForRide((int)($r['id'] ?? 0));
             }
             unset($r);
         }
-        // 3) Stats trajets effectués + CO2 pour l’utilisateur connecté
+
         $driverDone    = $uid ? Ride::countCompletedByDriver($uid) : 0;
         $passengerDone = $uid ? Booking::countCompletedByPassenger($uid) : 0;
         $totalDone     = (int)$driverDone + (int)$passengerDone;
 
-        // Facteur CO2 par trajet (kg) – tu peux le déplacer en config si tu préfères
+        // Indicateurs simples
         $co2PerTrip = 2.5;
         $co2Total   = $totalDone * $co2PerTrip;
 
@@ -62,7 +59,6 @@ final class UserDashboardController extends BaseController
             'co2_per_trip'    => $co2PerTrip,
             'co2_total'       => $co2Total,
         ];
-        /* ============== */
 
         $this->render('dashboard/user', [
             'title'        => 'Espace utilisateur',
@@ -81,7 +77,6 @@ final class UserDashboardController extends BaseController
         $id   = (int)($_SESSION['user']['id'] ?? 0);
         $user = $id ? (User::findById($id) ?? ($_SESSION['user'] ?? null)) : ($_SESSION['user'] ?? null);
 
-        // Préférences utilisateur (si le modèle existe)
         $prefs = [];
         foreach (['get','findByUserId','forUser'] as $m) {
             if (method_exists(UserPreferences::class, $m)) {
@@ -109,33 +104,30 @@ final class UserDashboardController extends BaseController
 
         $id = (int)($_SESSION['user']['id'] ?? 0);
 
-        // Accepte FR ou EN (profil)
         $payload = [
-            'nom'         => $_POST['nom']        ?? null,
-            'prenom'      => $_POST['prenom']     ?? null,
-            'email'       => $_POST['email']      ?? null,
-            'telephone'   => $_POST['telephone']  ?? null,
-            'adresse'     => $_POST['adresse']    ?? null,
-            'bio'         => $_POST['bio']        ?? null,
-            'last_name'   => $_POST['last_name']  ?? null,
-            'first_name'  => $_POST['first_name'] ?? null,
-            'phone'       => $_POST['phone']      ?? null,
-            'address'     => $_POST['address']    ?? null,
+            'nom'            => $_POST['nom']            ?? null,
+            'prenom'         => $_POST['prenom']         ?? null,
+            'email'          => $_POST['email']          ?? null,
+            'telephone'      => $_POST['telephone']      ?? null,
+            'adresse'        => $_POST['adresse']        ?? null,
+            'bio'            => $_POST['bio']            ?? null,
+            'last_name'      => $_POST['last_name']      ?? null,
+            'first_name'     => $_POST['first_name']     ?? null,
+            'phone'          => $_POST['phone']          ?? null,
+            'address'        => $_POST['address']        ?? null,
             'date_naissance' => $_POST['date_naissance'] ?? null,
         ];
         $data = [];
-        foreach ($payload as $k=>$v) {
-            if ($v !== null && $v !== '') { $data[$k] = is_string($v) ? trim($v) : $v; }
-        }
+        foreach ($payload as $k=>$v) if ($v !== null && $v !== '') $data[$k] = is_string($v) ? trim($v) : $v;
 
-        /* ---------- Upload avatar (optionnel) ---------- */
+        /* Upload avatar (optionnel) */
         $avatarUpdated = false;
         if (!empty($_FILES['avatar']) && is_array($_FILES['avatar']) && ($_FILES['avatar']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
             $f = $_FILES['avatar'];
             if ($f['error'] === UPLOAD_ERR_OK && is_uploaded_file($f['tmp_name'])) {
                 $allowed = ['image/jpeg','image/png','image/webp','image/gif'];
                 $mime = @mime_content_type($f['tmp_name']) ?: '';
-                $sizeOk = (int)$f['size'] <= 2 * 1024 * 1024; // 2 Mo
+                $sizeOk = (int)$f['size'] <= 2 * 1024 * 1024;
                 if (in_array($mime, $allowed, true) && $sizeOk) {
                     $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION) ?: 'jpg');
                     $baseDir = dirname(__DIR__, 2) . '/public/uploads/avatars';
@@ -149,22 +141,19 @@ final class UserDashboardController extends BaseController
                         } else {
                             $avatarUpdated = (bool)User::updateProfile($id, ['avatar_path'=>$relPath]);
                         }
-                        if (!empty($_SESSION['user'])) {
-                            $_SESSION['user']['avatar_path'] = $relPath;
-                        }
+                        if (!empty($_SESSION['user'])) $_SESSION['user']['avatar_path'] = $relPath;
                     } else {
                         $_SESSION['flash_error'] = "Échec lors de l'enregistrement de l'avatar.";
                         header('Location: ' . BASE_URL . 'profil/edit'); exit;
                     }
                 } else {
-                    $_SESSION['flash_error'] = "Avatar invalide (formats acceptés: JPG/PNG/WEBP/GIF, max 2 Mo).";
+                    $_SESSION['flash_error'] = "Avatar invalide (JPG/PNG/WEBP/GIF, 2 Mo max).";
                     header('Location: ' . BASE_URL . 'profil/edit'); exit;
                 }
             }
         }
-        /* ------------------------------------------------ */
 
-        /* ---------- Préférences ---------- */
+        /* Préférences */
         $prefsUpdated = false;
         $prefs = [
             'smoker'  => isset($_POST['pref_smoking']) ? (int)$_POST['pref_smoking'] : null,
@@ -184,9 +173,8 @@ final class UserDashboardController extends BaseController
                 }
             }
         }
-        /* -------------------------------- */
 
-        /* ---------- Mot de passe (optionnel) ---------- */
+        /* Mot de passe (optionnel) */
         $pwChanged = false;
         $newPw  = trim((string)($_POST['new_password']     ?? ''));
         $confPw = trim((string)($_POST['confirm_password'] ?? ''));
@@ -206,14 +194,11 @@ final class UserDashboardController extends BaseController
             }
             $pwChanged = true;
         }
-        /* ------------------------------------------------ */
 
-        // Mise à jour du profil (si champs fournis)
         $profileUpdated = $id>0 && $data ? User::updateProfile($id, $data) : false;
 
-        // RAF session
         $fresh = $id ? User::findById($id) : null;
-        if ($fresh) { $_SESSION['user'] = array_merge($_SESSION['user'] ?? [], $fresh); }
+        if ($fresh) $_SESSION['user'] = array_merge($_SESSION['user'] ?? [], $fresh);
 
         $parts = [];
         if ($profileUpdated) $parts[] = 'profil';
@@ -231,18 +216,13 @@ final class UserDashboardController extends BaseController
         header('Location: ' . BASE_URL . 'profil/edit', true, 301); exit;
     }
 
-    /* =========================
-       ALIAS/ADAPTATEURS
-       ========================= */
+    /* ALIAS, compat */
     public function editProfile(): void { $this->editForm(); }
     public function updateProfile(): void { $this->update(); }
     public function profile(): void { $this->editForm(); }
     public function legacyProfileRedirect(): void { $this->redirectToProfilEdit(); }
 
-    /* =========================
-       VÉHICULES
-       ========================= */
-
+    /* ===== VÉHICULES ===== */
     public function vehicleForm(): void
     {
         Security::ensure(['USER']);
@@ -340,9 +320,8 @@ final class UserDashboardController extends BaseController
         header('Location: ' . BASE_URL . 'user/dashboard'); exit;
     }
 
-    /* =========================
-       Trajet
-       ========================= */
+    /* ===== TRAJETS ===== */
+
     public function createRide(): void
     {
         Security::ensure(['USER']);
@@ -370,19 +349,17 @@ final class UserDashboardController extends BaseController
                 'from_city'  => trim((string)($_POST['from_city']  ?? '')),
                 'to_city'    => trim((string)($_POST['to_city']    ?? '')),
                 'date_start' => trim((string)($_POST['date_start'] ?? '')),
-                'date_end'   => trim((string)($_POST['date_end']   ?? '')), // AJOUT
+                'date_end'   => trim((string)($_POST['date_end']   ?? '')),
                 'seats'      => (int)($_POST['seats'] ?? 0),
                 'price'      => (int)($_POST['price'] ?? 0),
                 'notes'      => trim((string)($_POST['notes'] ?? '')),
             ];
 
-            // Champs obligatoires (inclut date_end)
             if ($payload['from_city']==='' || $payload['to_city']==='' || $payload['date_start']==='' || $payload['date_end']==='' || $payload['seats']<=0) {
                 $_SESSION['flash_error'] = 'Ville départ, arrivée, dates et places sont obligatoires.';
                 header('Location: ' . BASE_URL . 'user/ride/create'); exit;
             }
 
-            // Cohérence des dates : arrivée > départ
             try {
                 $ds = new \DateTime($payload['date_start']);
                 $de = new \DateTime($payload['date_end']);
@@ -397,11 +374,11 @@ final class UserDashboardController extends BaseController
 
             $ok = false;
 
-            // 1)  méthode createForDriver(array)
             if (method_exists(Ride::class, 'createForDriver')) {
+                // Chemin préféré si présent dans ton modèle
                 $ok = (bool)Ride::createForDriver($uid, $vehicleId, $payload);
             } else {
-                // 2) Compatibilité avec signature Ride::create(...)
+                // Appel 8-arguments (signature officielle)
                 try {
                     $newId = Ride::create(
                         $uid,
@@ -415,12 +392,8 @@ final class UserDashboardController extends BaseController
                     );
                     $ok = $newId > 0;
                 } catch (\ArgumentCountError|\TypeError $e) {
-                    // 3) Fallback: anciennes versions
-                    try {
-                        $ok = (bool)Ride::create($uid, $vehicleId, $payload);
-                    } catch (\Throwable $e2) {
-                        $ok = false;
-                    }
+                    // Pas de fallback 3-arguments : on considère l'échec
+                    $ok = false;
                 }
             }
 
@@ -439,9 +412,55 @@ final class UserDashboardController extends BaseController
         ]);
     }
 
-    /* Legacy alias — conservés */
     public function history(): void       { Security::ensure(['USER']); $this->render('dashboard/history',['title'=>'Historique']); }
     public function startRide(): void     { Security::ensure(['USER']); header('Location: ' . BASE_URL . 'user/dashboard'); }
-    public function endRide(): void       { Security::ensure(['USER']); header('Location: ' . BASE_URL . 'user/dashboard'); }
+
+    /** Marque le trajet terminé + envoie les invitations d’avis (mail) */
+    public function endRide(): void
+    {
+        Security::ensure(['USER']);
+
+        $rideId = (int)($_GET['id'] ?? $_POST['id'] ?? 0);
+        if ($rideId <= 0) { $_SESSION['flash_error']='Trajet invalide.'; header('Location: ' . BASE_URL . 'user/dashboard'); exit; }
+
+        // Vérifier que le trajet appartient au conducteur connecté
+        $ride = \App\Models\Ride::findById($rideId);
+        $uid  = (int)($_SESSION['user']['id'] ?? 0);
+        if (!$ride || (int)$ride['driver_id'] !== $uid) {
+            $_SESSION['flash_error'] = "Trajet introuvable ou non autorisé.";
+            header('Location: ' . BASE_URL . 'user/dashboard'); exit;
+        }
+
+        // Marque "terminé"
+        \App\Models\Ride::setStatus($rideId, 'FINISHED');
+
+        // Passagers confirmés (avec email)
+        $passengers = \App\Models\Booking::passengersWithEmailForRide($rideId);
+
+        // Mailer
+        $mailer = new Mailer();
+
+        // Lien signé pour chaque passager
+        foreach ($passengers as $p) {
+            $token = \App\Security\Security::signReviewToken($rideId, (int)$p['id'], time() + 7 * 86400); // 7 jours
+            $link  = BASE_URL . "reviews/new?token=" . rawurlencode($token);
+            $mailer->sendReviewInvite(
+                [
+                    'email'  => (string)$p['email'],
+                    'pseudo' => (string)($p['display_name'] ?? $p['email']),
+                ],
+                $ride,
+                [
+                    'email'  => (string)($ride['driver_email'] ?? ''),
+                    'pseudo' => (string)($_SESSION['user']['prenom'] ?? $_SESSION['user']['nom'] ?? 'Chauffeur'),
+                ],
+                $link
+            );
+        }
+
+        $_SESSION['flash_success'] = "Trajet marqué terminé. Invitations à laisser un avis envoyées.";
+        header('Location: ' . BASE_URL . 'user/dashboard'); exit;
+    }
+
     public function cancelRide(): void    { Security::ensure(['USER']); header('Location: ' . BASE_URL . 'user/dashboard'); }
 }

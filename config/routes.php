@@ -4,12 +4,13 @@ use App\Controllers\HomeController;
 use App\Controllers\RideController;
 use App\Controllers\AuthController;
 use App\Controllers\DashboardGatewayController;
-use App\Controllers\UserDashboardController;
+use App\Controllers\GeneralController;
 use App\Controllers\EmployeeController;
 use App\Controllers\AdminController;
 use App\Controllers\StaticController;
 use App\Controllers\TrajetController;
 use App\Controllers\CronController;
+use App\Controllers\ReviewController;
 
 /* Public */
 $router->get('/',                          [HomeController::class, 'index']);
@@ -39,50 +40,44 @@ $router->post('/logout',                   [AuthController::class, 'logout']);
 
 /* Dashboard – passerelle + page covoiturage publique */
 $router->get('/dashboard',                 [DashboardGatewayController::class, 'route']);
-$router->get('/covoiturage',               [\App\Controllers\RideController::class, 'covoiturage']);
+$router->get('/covoiturage',               [RideController::class, 'covoiturage']);
 
 /* Espace user */
-$router->get('/user/dashboard',            [UserDashboardController::class, 'index']);
-$router->get('/profil/edit',               [UserDashboardController::class, 'editForm']);
-$router->post('/profil/edit',              [UserDashboardController::class, 'update']);
-$router->get('/profile/edit',              [UserDashboardController::class, 'redirectToProfilEdit']);
-$router->post('/profile/edit',             [UserDashboardController::class, 'update']);
-$router->get('/user/profile',              [UserDashboardController::class, 'profile']);
-$router->post('/user/profile/update',      [UserDashboardController::class, 'updateProfile']);
-$router->get('/profile',                   [UserDashboardController::class, 'profile']);
-$router->post('/profile/update',           [UserDashboardController::class, 'updateProfile']);
+$router->get('/user/dashboard',            [GeneralController::class, 'index']);
+$router->get('/profil/edit',               [GeneralController::class, 'editForm']);
+$router->post('/profil/edit',              [GeneralController::class, 'update']);
+$router->get('/profile/edit',              [GeneralController::class, 'redirectToProfilEdit']);
+$router->post('/profile/edit',             [GeneralController::class, 'update']);
+$router->get('/user/profile',              [GeneralController::class, 'profile']);
+$router->post('/user/profile/update',      [GeneralController::class, 'updateProfile']);
+$router->get('/profile',                   [GeneralController::class, 'profile']);
+$router->post('/profile/update',           [GeneralController::class, 'updateProfile']);
 
-$router->get('/user/vehicle',              [UserDashboardController::class, 'vehicleForm']);
-$router->get('/user/vehicle/edit',         [UserDashboardController::class, 'vehicleForm']);
-$router->post('/user/vehicle/add',         [UserDashboardController::class, 'addVehicle']);
-$router->post('/user/vehicle/edit',        [UserDashboardController::class, 'editVehicle']);
-$router->post('/user/vehicle/delete',      [UserDashboardController::class, 'deleteVehicle']);
-$router->get('/vehicle',                   [UserDashboardController::class, 'vehicleForm']);
-$router->get('/vehicle/edit',              [UserDashboardController::class, 'vehicleForm']);
-$router->post('/vehicle/add',              [UserDashboardController::class, 'addVehicle']);
-$router->post('/vehicle/edit',             [UserDashboardController::class, 'editVehicle']);
-$router->post('/vehicle/delete',           [UserDashboardController::class, 'deleteVehicle']);
+$router->get('/user/vehicle',              [GeneralController::class, 'vehicleForm']);
+$router->get('/user/vehicle/edit',         [GeneralController::class, 'vehicleForm']);
+$router->post('/user/vehicle/add',         [GeneralController::class, 'addVehicle']);
+$router->post('/user/vehicle/edit',        [GeneralController::class, 'editVehicle']);
+$router->post('/user/vehicle/delete',      [GeneralController::class, 'deleteVehicle']);
+$router->get('/vehicle',                   [GeneralController::class, 'vehicleForm']);
+$router->get('/vehicle/edit',              [GeneralController::class, 'vehicleForm']);
+$router->post('/vehicle/add',              [GeneralController::class, 'addVehicle']);
+$router->post('/vehicle/edit',             [GeneralController::class, 'editVehicle']);
+$router->post('/vehicle/delete',           [GeneralController::class, 'deleteVehicle']);
 
-$router->get('/user/ride/create',          [UserDashboardController::class, 'createRide']);
-$router->post('/user/ride/create',         [UserDashboardController::class, 'createRide']);
-$router->get('/user/ride/cancel',          [UserDashboardController::class, 'cancelRide']);
-$router->get('/ride/create',               [UserDashboardController::class, 'createRide']);
-$router->post('/ride/create',              [UserDashboardController::class, 'createRide']);
-$router->get('/ride/cancel',               [UserDashboardController::class, 'cancelRide']);
+$router->get('/user/ride/create',          [GeneralController::class, 'createRide']);
+$router->post('/user/ride/create',         [GeneralController::class, 'createRide']);
+$router->get('/user/ride/cancel',          [GeneralController::class, 'cancelRide']);
+$router->get('/ride/create',               [GeneralController::class, 'createRide']);
+$router->post('/ride/create',              [GeneralController::class, 'createRide']);
+$router->get('/ride/cancel',               [GeneralController::class, 'cancelRide']);
 
-$router->get('/user/history',              [UserDashboardController::class, 'history']);
-$router->get('/user/ride/start',           [UserDashboardController::class, 'startRide']);
-$router->post('/user/ride/start',          [UserDashboardController::class, 'startRide']);
-$router->get('/user/ride/end',             [UserDashboardController::class, 'endRide']);
-$router->post('/user/ride/end',            [UserDashboardController::class, 'endRide']);
-$router->get('/history',                   [UserDashboardController::class, 'history']);
-$router->get('/ride/start',                [UserDashboardController::class, 'startRide']);
-$router->post('/ride/start',               [UserDashboardController::class, 'startRide']);
-$router->get('/ride/end',                  [UserDashboardController::class, 'endRide']);
-$router->post('/ride/end',                 [UserDashboardController::class, 'endRide']);
+/* Fin de trajet (envoi d'invitations d'avis) */
+$router->get('/user/ride/end',             [GeneralController::class, 'endRide']);
+$router->post('/user/ride/end',            [GeneralController::class, 'endRide']);
 
 /* Employé */
 $router->get('/employee/dashboard',        [EmployeeController::class, 'index']);
+$router->get('/employee/reviews',          [EmployeeController::class, 'reviews']);
 $router->post('/employee/reviews',         [EmployeeController::class, 'moderate']);
 $router->get('/employee',                  [EmployeeController::class, 'index']);
 
@@ -95,6 +90,10 @@ $router->post('/admin/employees/create',   [AdminController::class, 'createEmplo
 $router->get('/admin',                     [AdminController::class, 'index']);
 $router->get('/admin/api/credits-history', [AdminController::class, 'apiCreditsHistory']);
 
-/* Cron (tâches planifiées) */
+/* Avis (NoSQL) */
+$router->get('/reviews/new',               [ReviewController::class, 'new']);
+$router->post('/reviews',                  [ReviewController::class, 'create']);
+
+/* Cron */
 $router->get('/cron/run',                  [CronController::class, 'run']);
 $router->post('/cron/run',                 [CronController::class, 'run']);

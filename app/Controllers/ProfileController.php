@@ -2,7 +2,7 @@
 namespace App\Controllers;
 
 use App\Security\Security;
-use App\Models\UserModel;
+use App\Models\User;
 
 class ProfileController
 {
@@ -12,11 +12,12 @@ class ProfileController
         Security::ensure(['USER','EMPLOYEE','ADMIN']);
 
         $userId = (int)($_SESSION['user']['id'] ?? 0);
-        $user   = UserModel::findById($userId);
+        $user   = $userId ? (User::findById($userId) ?? []) : [];
 
         // Vue: app/Views/dashboard/profile_edit.php
         ob_start();
         $title = 'Modifier mon profil';
+        $user  = $user;
         include dirname(__DIR__,1).'/Views/dashboard/profile_edit.php';
         return ob_get_clean();
     }
@@ -58,16 +59,16 @@ class ProfileController
         }
 
         // Update profil
-        UserModel::updateProfile($userId, [
-            'pseudo' => $pseudo,
+        User::updateProfile($userId, [
+            'nom'    => $pseudo,  // compat FR/EN via User::updateProfile()
             'email'  => $email,
-            'phone'  => $phone,
+            'telephone' => $phone,
             'bio'    => $bio,
         ]);
 
         // Update password si fourni
         if ($newPass !== '' && $newPass === $confirm) {
-            UserModel::updatePassword($userId, $newPass);
+            User::updatePassword($userId, $newPass);
         }
 
         // Sync session (utile pour l’entête)

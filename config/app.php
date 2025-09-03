@@ -11,7 +11,7 @@ return [
   'mongo' => [
     // compose exposes MONGO_HOST=mongo; default port 27017
     'host' => getenv('MONGO_HOST') ?: 'mongo',
-    'port' => 27017,
+    'port' => '27017',
     'db'   => 'ecoride',
   ],
   'app' => [
