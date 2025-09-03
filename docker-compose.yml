@@ -5,27 +5,30 @@ services:
     ports:
       - "8080:80"
     environment:
+      # --- MySQL ---
       DB_HOST: db
       DB_NAME: ecoride
       DB_USER: ecoride_user
       DB_PASS: ecoride_password
-      MONGO_HOST: mongo
+
+      # --- MongoDB (URI + DB) ---
+      MONGO_URI: mongodb://root:secret@mongo:27017/?authSource=admin
       MONGO_DB: ecoride
+
+      # --- Divers ---
       TIMEZONE: Europe/Paris
       DEBUG: "1"
 
-      # --- AJOUTS SMTP (PHPMailer) ---
-      # Prod/SMTP réel 
+      # --- SMTP (PHPMailer) ---
+      # Prod/SMTP réel
       MAIL_HOST: smtp.gmail.com
       MAIL_PORT: "587"              # 587 = STARTTLS ; 465 = SMTPS
-      MAIL_USERNAME: 	ecoride.demo@gmail.com
+      MAIL_USERNAME: ecoride.demo@gmail.com
       MAIL_PASSWORD: fjsi deqa cbng kdgo
       MAIL_FROM_ADDRESS: ecoride.demo@gmail.com
       MAIL_FROM_NAME: EcoRide
-      MAIL_ENCRYPTION: tls          
-      MAIL_DEBUG: "0"               
-
-     
+      MAIL_ENCRYPTION: tls
+      MAIL_DEBUG: "0"
 
     volumes:
       - ./:/var/www/html
@@ -35,8 +38,7 @@ services:
       db:
         condition: service_healthy
       mongo:
-        condition: service_started
-     
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - ecoride_network
@@ -68,10 +70,13 @@ services:
     container_name: ecoride_mongo
     ports:
       - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: secret
     volumes:
       - mongo_data:/data/db
     healthcheck:
-      test: ["CMD-SHELL", "echo 'db.runCommand(\"ping\").ok' | mongosh --quiet localhost:27017/test || exit 1"]
+      test: ["CMD-SHELL", "mongosh -u root -p secret --authenticationDatabase admin --quiet --eval 'db.adminCommand({ ping: 1 }).ok' || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 30
@@ -98,7 +103,6 @@ services:
     networks:
       - ecoride_network
 
- 
   mailhog:
     image: mailhog/mailhog:latest
     container_name: ecoride_mailhog
