@@ -20,9 +20,8 @@ services:
       DEBUG: "1"
 
       # --- SMTP (PHPMailer) ---
-      # Prod/SMTP réel
       MAIL_HOST: smtp.gmail.com
-      MAIL_PORT: "587"              # 587 = STARTTLS ; 465 = SMTPS
+      MAIL_PORT: "587"
       MAIL_USERNAME: ecoride.demo@gmail.com
       MAIL_PASSWORD: fjsi deqa cbng kdgo
       MAIL_FROM_ADDRESS: ecoride.demo@gmail.com
@@ -66,10 +65,9 @@ services:
       - ecoride_network
 
   mongo:
-    image: mongo:6
+    image: mongo:7
     container_name: ecoride_mongo
-    ports:
-      - "27017:27017"
+    # (ports supprimés pour éviter tout conflit et sécuriser l'accès)
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: secret
@@ -83,6 +81,46 @@ services:
     restart: unless-stopped
     networks:
       - ecoride_network
+
+  # UI d'audit Mongo en lecture seule, accessible uniquement en local
+  mongo-express:
+    image: mongo-express:latest
+    container_name: ecoride_mexpress
+    ports:
+      - "127.0.0.1:8082:8081"   # http://localhost:8082
+    environment:
+      ME_CONFIG_MONGODB_SERVER: mongo
+      ME_CONFIG_MONGODB_PORT: "27017"
+      ME_CONFIG_MONGODB_ENABLE_ADMIN: "true"
+      ME_CONFIG_MONGODB_AUTH_DATABASE: admin
+      ME_CONFIG_MONGODB_ADMINUSERNAME: root
+      ME_CONFIG_MONGODB_ADMINPASSWORD: secret
+
+      # Auth UI + lecture seule
+      ME_CONFIG_BASICAUTH_USERNAME: audit
+      ME_CONFIG_BASICAUTH_PASSWORD: audit-pass
+      ME_CONFIG_SITE_READONLY: "true"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - ecoride_network
+
+  # Outil d'export/dump pour les audits (pas de port exposé)
+  mongo-tools:
+    image: mongodb/mongodb-database-tools:ubuntu2204
+    container_name: ecoride_mtools
+    # Pas de démarrage auto ; on l'utilise avec `docker compose run --rm mongo-tools ...`
+    command: ["sleep", "infinity"]
+    depends_on:
+      mongo:
+        condition: service_healthy
+    volumes:
+      - ./backups:/backups   # dumps/exports seront écrits ici
+    networks:
+      - ecoride_network
+    restart: "no"
 
   phpmyadmin:
     image: phpmyadmin/phpmyadmin:latest
