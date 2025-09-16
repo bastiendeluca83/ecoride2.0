@@ -18,14 +18,14 @@ final class GeneralController extends BaseController
         Security::ensure(['USER']);
         $uid  = (int)($_SESSION['user']['id'] ?? 0);
 
-        // Rafraîchit l'utilisateur (crédits, etc.)
+        /* Rafraîchit l'utilisateur (crédits, etc.) */
         $fresh = $uid ? User::findById($uid) : null;
         if ($fresh) {
             $_SESSION['user'] = array_merge($_SESSION['user'] ?? [], $fresh);
         }
         $user = $_SESSION['user'] ?? ['nom'=>'Utilisateur','credits'=>0,'total_rides'=>0];
 
-        // Données tableau de bord
+        /* Données tableau de bord*/
         $reservations = $uid ? Booking::forPassengerUpcoming($uid) : [];
         $rides        = $uid ? Ride::forDriverUpcoming($uid) : [];
         $vehicles     = $uid ? Vehicle::forUser($uid) : [];
@@ -48,7 +48,7 @@ final class GeneralController extends BaseController
         $passengerDone = $uid ? Booking::countCompletedByPassenger($uid) : 0;
         $totalDone     = (int)$driverDone + (int)$passengerDone;
 
-        // Indicateurs simples
+        /* Indicateurs simples*/
         $co2PerTrip = 2.5;
         $co2Total   = $totalDone * $co2PerTrip;
 
@@ -70,7 +70,7 @@ final class GeneralController extends BaseController
         ]);
     }
 
-    /** GET /profil/edit */
+    /* GET /profil/edit */
     public function editForm(): void
     {
         Security::ensure(['USER']);
@@ -92,7 +92,7 @@ final class GeneralController extends BaseController
         ]);
     }
 
-    /** POST /profil/edit */
+    /* POST /profil/edit */
     public function update(): void
     {
         Security::ensure(['USER']);
@@ -174,7 +174,7 @@ final class GeneralController extends BaseController
             }
         }
 
-        /* Mot de passe (optionnel) */
+        /* Mot de passe  */
         $pwChanged = false;
         $newPw  = trim((string)($_POST['new_password']     ?? ''));
         $confPw = trim((string)($_POST['confirm_password'] ?? ''));
@@ -375,10 +375,10 @@ final class GeneralController extends BaseController
             $ok = false;
 
             if (method_exists(Ride::class, 'createForDriver')) {
-                // Chemin préféré si présent dans ton modèle
+                /* Chemin préféré si présent dans ton modèle */
                 $ok = (bool)Ride::createForDriver($uid, $vehicleId, $payload);
             } else {
-                // Appel 8-arguments (signature officielle)
+                // Appel 8-arguments */
                 try {
                     $newId = Ride::create(
                         $uid,
@@ -392,7 +392,7 @@ final class GeneralController extends BaseController
                     );
                     $ok = $newId > 0;
                 } catch (\ArgumentCountError|\TypeError $e) {
-                    // Pas de fallback 3-arguments : on considère l'échec
+                    /* Pas de fallback 3-arguments : on considère l'échec */
                     $ok = false;
                 }
             }
@@ -415,7 +415,7 @@ final class GeneralController extends BaseController
     public function history(): void       { Security::ensure(['USER']); $this->render('dashboard/history',['title'=>'Historique']); }
     public function startRide(): void     { Security::ensure(['USER']); header('Location: ' . BASE_URL . 'user/dashboard'); }
 
-    /** Marque le trajet terminé + envoie les invitations d’avis (mail) */
+    /* Marque le trajet terminé + envoie les invitations d’avis (mail) */
     public function endRide(): void
     {
         Security::ensure(['USER']);
@@ -423,7 +423,7 @@ final class GeneralController extends BaseController
         $rideId = (int)($_GET['id'] ?? $_POST['id'] ?? 0);
         if ($rideId <= 0) { $_SESSION['flash_error']='Trajet invalide.'; header('Location: ' . BASE_URL . 'user/dashboard'); exit; }
 
-        // Vérifier que le trajet appartient au conducteur connecté
+        /* Vérifier que le trajet appartient au conducteur connecté */
         $ride = \App\Models\Ride::findById($rideId);
         $uid  = (int)($_SESSION['user']['id'] ?? 0);
         if (!$ride || (int)$ride['driver_id'] !== $uid) {
@@ -431,16 +431,16 @@ final class GeneralController extends BaseController
             header('Location: ' . BASE_URL . 'user/dashboard'); exit;
         }
 
-        // Marque "terminé"
+        /* Marque "terminé" */
         \App\Models\Ride::setStatus($rideId, 'FINISHED');
 
-        // Passagers confirmés (avec email)
+        /* Passagers confirmés (avec email) */
         $passengers = \App\Models\Booking::passengersWithEmailForRide($rideId);
 
-        // Mailer
+        /* Mailer */
         $mailer = new Mailer();
 
-        // Lien signé pour chaque passager
+        /* Lien signé pour chaque passager */
         foreach ($passengers as $p) {
             $token = \App\Security\Security::signReviewToken($rideId, (int)$p['id'], time() + 7 * 86400); // 7 jours
             $link  = BASE_URL . "reviews/new?token=" . rawurlencode($token);

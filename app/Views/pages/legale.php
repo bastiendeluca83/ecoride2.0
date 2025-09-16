@@ -1,6 +1,6 @@
 <?php
-// app/Views/pages/legal.php
-// Vue injectée dans layouts/base.php (NE PAS mettre <html>/<head>/<body>)
+/* app/Views/pages/legal.php
+ Vue injectée dans layouts/base.php */
 $title = $title ?? 'Mentions légales – EcoRide';
 
 if (!function_exists('h')) {

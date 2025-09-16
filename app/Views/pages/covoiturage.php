@@ -2,7 +2,7 @@
 /** @var array $rides_upcoming */
 /** @var array $rides_past_30d */
 
-/* ----------------- Helpers généraux ----------------- */
+/* Helpers généraux  */
 if (!function_exists('e')) {
   function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 }
@@ -61,7 +61,7 @@ if (!function_exists('ride_driver_avatar')) {
 if (!function_exists('ride_prefs_from_row')) {
   function ride_prefs_from_row(array $r): array {
     if (!empty($r['prefs']) && is_array($r['prefs'])) return $r['prefs'];
-    // champs ramenés par la requête du contrôleur
+    /* champs ramenés par la requête du contrôleur*/
     return [
       'smoker'  => isset($r['smoker'])  ? (int)$r['smoker']  : (isset($r['pref_smoking']) ? (int)$r['pref_smoking'] : 0),
       'animals' => isset($r['animals']) ? (int)$r['animals'] : (isset($r['pref_pets'])    ? (int)$r['pref_pets']    : 0),
@@ -72,7 +72,7 @@ if (!function_exists('ride_prefs_from_row')) {
   }
 }
 
-/* ---------- MAPPINGS de préférences (0/1/2) ---------- */
+/* MAPPINGS de préférences (0/1/2) */
 function pref_txt(string $k, int $v): string {
   $map = [
     'smoker'  => [0=>'N/A', 1=>'Non',         2=>'Oui'],
@@ -93,7 +93,7 @@ function pref_badge(string $k, int $v): string {
   return 'bg-secondary';
 }
 
-/* ---------- Données entrantes possibles ---------- */
+/*  Données entrantes possibles */
 $upcoming = $rides_upcoming ?? $ridesUpcoming ?? $rides ?? [];
 $past30   = $rides_past_30d ?? $ridesPast30 ?? $rides_past ?? [];
 $isLogged = !empty($_SESSION['user']['id']);

@@ -46,7 +46,7 @@ class Ride
         return $id > 0 ? $id : false;
     }
 
-    /** AJOUT : crée le trajet si inexistant et retourne son id (anti-doublon). */
+    /* : crée le trajet si inexistant et retourne son id (anti-doublon). */
     public static function ensureRide(
         int $driverId,
         int $vehicleId,
@@ -57,7 +57,7 @@ class Ride
         int $price,
         ?int $seatsLeft = null
     ): ?int {
-        // 1) existe déjà ?
+        /* 1) existe déjà ? */
         $exists = self::one(
             "SELECT id FROM rides
              WHERE driver_id=:d AND vehicle_id=:v AND from_city=:fc AND to_city=:tc AND date_start=:ds
@@ -66,14 +66,14 @@ class Ride
         );
         if ($exists) return (int)$exists['id'];
 
-        // 2) seats par défaut = seats du véhicule
+        /* 2) seats par défaut = seats du véhicule */
         if ($seatsLeft === null) {
             $row = self::one("SELECT seats FROM vehicles WHERE id=:v", [':v'=>$vehicleId]);
             $seatsLeft = (int)($row['seats'] ?? 0);
             if ($seatsLeft <= 0) $seatsLeft = 1;
         }
 
-        // 3) création
+        /* 3) création */
         $id = self::create(
             $driverId, $vehicleId, $fromCity, $toCity, $dateStart, $dateEnd, $price, $seatsLeft
         );
@@ -89,7 +89,7 @@ class Ride
         return self::one($sql, [':id'=>$id]);
     }
 
-    /** Recherche simple calée sur l’index (from_city,to_city,date_start) */
+    /* Recherche simple calée sur l’index (from_city,to_city,date_start) */
     public static function search(
         string $fromCity,string $toCity,string $date,
         bool $ecoOnly=false,?int $priceMax=null,?int $durationMaxMin=null
@@ -140,9 +140,8 @@ class Ride
         return self::all($sql, [':d'=>$driverId]);
     }
 
-    /* ===== AJOUTS ===== */
 
-    /** Participants confirmés d’un trajet (nom affichable + avatar). */
+    /* Participants confirmés d’un trajet (nom affichable + avatar). */
     public static function passengersForRide(int $rideId): array {
         $sql = "SELECT 
                     u.id,
@@ -159,7 +158,7 @@ class Ride
         return self::all($sql, [':r' => $rideId]);
     }
 
-    /** Informations conducteur pour un ride donné (pour “Mes réservations”). */
+    /* Informations conducteur pour un ride donné (pour “Mes réservations”). */
     public static function driverInfo(int $rideId): ?array {
         $sql = "SELECT 
                     u.id,
@@ -175,7 +174,7 @@ class Ride
         return self::one($sql, [':r' => $rideId]);
     }
 
-    /** >>> Compte des trajets terminés en tant que conducteur (pour l’utilisateur connecté). */
+    /*>>> Compte des trajets terminés en tant que conducteur (pour l’utilisateur connecté). */
     public static function countCompletedByDriver(int $userId): int {
         $sql = "SELECT COUNT(*) 
                 FROM rides r

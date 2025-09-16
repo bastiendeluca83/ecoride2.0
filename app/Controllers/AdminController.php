@@ -10,7 +10,7 @@ use App\Models\AdminStats;
 
 final class AdminController extends BaseController
 {
-    /** GET /admin ou /admin/dashboard */
+    
     public function index(): void
     {
         Security::ensure(['ADMIN']);

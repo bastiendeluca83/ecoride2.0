@@ -1,7 +1,7 @@
 <?php
-// app/Views/home/index.php
-// Cette vue est injectée dans le layout global via View::render() / BaseController::render().
-// Ne pas ajouter <html>, <head>, header ou footer ici.
+/* app/Views/home/index.php
+ Cette vue est injectée dans le layout global via View::render() / BaseController::render().*/
+
 $title = 'Accueil – EcoRide';
 ?>
 

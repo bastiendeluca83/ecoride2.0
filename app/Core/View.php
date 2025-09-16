@@ -9,7 +9,7 @@ namespace App\Core;
  */
 class View {
     public static function render(string $tpl, array $data = []): void {
-        // Rend disponibles les variables du tableau $data dans la vue
+        /* Rend disponibles les variables du tableau $data dans la vue */
         extract($data, EXTR_SKIP);
 
         // Exemple : "home/index" => /app/Views/home/index.php
@@ -21,19 +21,19 @@ class View {
             return;
         }
 
-        // Inclusion du header
+        /* Inclusion du header */
         require VIEW_PATH . '/includes/header.php';
 
-        // Messages flash (optionnel, si tu crées flash.php)
+        /* Messages flash (optionnel, si tu crées flash.php)*/
         $flashFile = VIEW_PATH . '/includes/flash.php';
         if (is_file($flashFile)) {
             require $flashFile;
         }
 
-        // Vue principale
+        /* Vue principale */
         require $file;
 
-        // Footer
+        /* Footer */
         require VIEW_PATH . '/includes/footer.php';
     }
 }

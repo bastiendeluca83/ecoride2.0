@@ -1,8 +1,8 @@
--- docker/mysql-init/init.sql - schéma minimal SQL (rapide)
+/* docker/mysql-init/init.sql - schéma minimal SQL (rapide) */
 CREATE DATABASE IF NOT EXISTS ecoride CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE ecoride;
 
--- Users
+/* Users */
 CREATE TABLE IF NOT EXISTS users (
   id INT AUTO_INCREMENT PRIMARY KEY,
   nom VARCHAR(60) NULL,
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
--- Vehicles
+/* Vehicles */
 CREATE TABLE IF NOT EXISTS vehicles (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS vehicles (
   INDEX (user_id)
 ) ENGINE=InnoDB;
 
--- Rides
+/* Rides */
 CREATE TABLE IF NOT EXISTS rides (
   id INT AUTO_INCREMENT PRIMARY KEY,
   driver_id INT NOT NULL,
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS rides (
   INDEX idx_search (from_city, to_city, date_start)
 ) ENGINE=InnoDB;
 
--- Bookings
+/* Bookings */
 CREATE TABLE IF NOT EXISTS bookings (
   id INT AUTO_INCREMENT PRIMARY KEY,
   ride_id INT NOT NULL,
@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   INDEX (passenger_id)
 ) ENGINE=InnoDB;
 
--- Plateforme (crédits prélevés)
+/* Plateforme (crédits prélevés) */
 CREATE TABLE IF NOT EXISTS penalties_platform (
   id INT AUTO_INCREMENT PRIMARY KEY,
   ride_id INT NOT NULL,
@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS penalties_platform (
   FOREIGN KEY (ride_id) REFERENCES rides(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
--- Seeds (démo) — utiliser NULL pour telephone (colonne UNIQUE)
+/* Seeds (démo) — utiliser NULL pour telephone (colonne UNIQUE) */
 INSERT INTO users (nom, prenom, adresse, telephone, email, password_hash, role, credits) VALUES
 ('driver1', NULL, NULL, NULL, 'driver1@example.com', '$2y$10$PsW5BWZ6dOGkcZI6cIN88uwahU.Q/xeIYr25P6/.hUNr7SpyUEZG2', 'USER', 50),
 ('user1',   NULL, NULL, NULL, 'employee@example.com',   '$2y$10$PsW5BWZ6dOGkcZI6cIN88uwahU.Q/xeIYr25P6/.hUNr7SpyUEZG2', 'USER', 20),

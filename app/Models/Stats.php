@@ -12,13 +12,13 @@ final class Stats
     {
         $pdo = self::pdo();
 
-        // === Utilisateurs ===
+        /*Utilisateurs  */
         $usersTotal = 0;
         try {
             $usersTotal = (int)$pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
         } catch (\Throwable $e) {}
 
-        // === Trajets à venir (tous) ===
+        /*Trajets à venir (tous) */
         $ridesUpcoming = 0;
         try {
             $ridesUpcoming = (int)$pdo->query("
@@ -26,7 +26,7 @@ final class Stats
             ")->fetchColumn();
         } catch (\Throwable $e) {}
 
-        // === Trajets disponibles à venir (seats_left > 0) ===
+        /* Trajets disponibles à venir (seats_left > 0) */
         $ridesUpcomingAvailable = 0;
         try {
             $ridesUpcomingAvailable = (int)$pdo->query("
@@ -35,7 +35,7 @@ final class Stats
             ")->fetchColumn();
         } catch (\Throwable $e) {}
 
-        // === Réservations confirmées (total & à venir) ===
+        /* Réservations confirmées (total & à venir) */
         $bookingsTotal = 0;
         $bookingsUpcoming = 0;
         try {
@@ -54,7 +54,7 @@ final class Stats
             $bookingsUpcoming = (int)($st ? $st->fetchColumn() : 0);
         } catch (\Throwable $e) {}
 
-        // === Places restantes (somme seats_left) : à venir & global ===
+        /* Places restantes (somme seats_left) : à venir & global */
         $seatsLeftUpcoming = 0;
         $seatsLeftAll      = 0;
         try {
@@ -71,7 +71,7 @@ final class Stats
             ")->fetchColumn();
         } catch (\Throwable $e) {}
 
-        // === Crédits plateforme total (transactions libellées commission) + fallback bookings*2 ===
+        /* Crédits plateforme total (transactions libellées commission) + fallback bookings*2 */
         $platformCreditsTotal = 0;
         try {
             $q = $pdo->query("
@@ -85,32 +85,32 @@ final class Stats
             }
         } catch (\Throwable $e) {}
         if ($platformCreditsTotal === 0) {
-            // fallback = 2 crédits par réservation confirmée (total)
+            /* fallback = 2 crédits par réservation confirmée (total) */
             $platformCreditsTotal = $bookingsTotal * 2;
         }
 
-        // === Super-set de clés (FR/EN + snake/camel + *_total / *_upcoming) ===
+        /* Super-set de clés (FR/EN + snake/camel + *_total / *_upcoming) */
         return [
-            // Utilisateurs
+            /* Utilisateurs */
             'users'                 => $usersTotal,
             'active_users'          => $usersTotal,
             'users_active'          => $usersTotal,
             'usersTotal'            => $usersTotal,
             'utilisateurs_actifs'   => $usersTotal,
 
-            // Trajets à venir (tous)
+            /* Trajets à venir (tous) */
             'rides_upcoming'        => $ridesUpcoming,
             'ridesUpcoming'         => $ridesUpcoming,
             'trajets_a_venir'       => $ridesUpcoming,
             'trajetsAVenir'         => $ridesUpcoming,
 
-            // Trajets disponibles à venir (avec places)
+            /* Trajets disponibles à venir (avec places) */
             'rides_upcoming_available'  => $ridesUpcomingAvailable,
             'ridesUpcomingAvailable'    => $ridesUpcomingAvailable,
             'trajets_disponibles'       => $ridesUpcomingAvailable,
             'trajetsDisponibles'        => $ridesUpcomingAvailable,
 
-            // Réservations (total)
+            /* Réservations (total) */
             'bookings'              => $bookingsTotal,
             'bookings_total'        => $bookingsTotal,
             'bookingsTotal'         => $bookingsTotal,
@@ -122,13 +122,13 @@ final class Stats
             'booking_count'         => $bookingsTotal,
             'reservations_count'    => $bookingsTotal,
 
-            // Réservations à venir
+            /* Réservations à venir */
             'bookings_upcoming'     => $bookingsUpcoming,
             'bookingsUpcoming'      => $bookingsUpcoming,
             'reservations_upcoming' => $bookingsUpcoming,
             'reservationsUpcoming'  => $bookingsUpcoming,
 
-            // Places restantes (à venir)
+            /* Places restantes (à venir) */
             'seats_left'            => $seatsLeftUpcoming,
             'seatsLeft'             => $seatsLeftUpcoming,
             'seats_left_total'      => $seatsLeftUpcoming,
@@ -139,18 +139,18 @@ final class Stats
             'places_restantes_total'=> $seatsLeftUpcoming,
             'placesRestantesTotal'  => $seatsLeftUpcoming,
 
-            // Places restantes (tous trajets)
+            /* Places restantes (tous trajets) */
             'seats_left_all'        => $seatsLeftAll,
             'seatsLeftAll'          => $seatsLeftAll,
             'places_restantes_all'  => $seatsLeftAll,
             'placesRestantesAll'    => $seatsLeftAll,
 
-            // Crédits plateforme (total)
+            /* Crédits plateforme (total) */
             'platform_credits'      => $platformCreditsTotal,
             'platformCredits'       => $platformCreditsTotal,
             'platform_credits_total'=> $platformCreditsTotal,
             'platformCreditsTotal'  => $platformCreditsTotal,
-            'platform_total'        => $platformCreditsTotal, // alias pour la vue
+            'platform_total'        => $platformCreditsTotal, 
             'credits_plateforme'    => $platformCreditsTotal,
             'creditsPlateforme'     => $platformCreditsTotal,
             'total_credits'         => $platformCreditsTotal,
@@ -162,7 +162,7 @@ final class Stats
 
     public static function ridesPerDay(string $from, string $to): array
     {
-        // Historique complet (on ne filtre pas les places)
+        /* Historique complet (on ne filtre pas les places) */
         $sql = "SELECT
                     DATE(date_start) AS jour,
                     DATE(date_start) AS day,
@@ -181,7 +181,7 @@ final class Stats
     {
         $pdo = self::pdo();
 
-        // 1) via transactions (commission plate-forme/plateforme)
+        /* 1) via transactions (commission plate-forme) */
         try {
             $sql = "SELECT
                         DATE(created_at) AS jour,
@@ -199,7 +199,7 @@ final class Stats
             if ($rows) return $rows;
         } catch (\Throwable $e) {}
 
-        // 2) fallback : 2 * nb bookings confirmées par jour
+        /* 2) fallback : 2 * nb bookings confirmées par jour */
         $sql = "SELECT
                     DATE(b.created_at) AS jour,
                     DATE(b.created_at) AS day,
@@ -214,7 +214,7 @@ final class Stats
         return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    // (Resté pour compatibilité éventuelle)
+    /* (Resté pour compatibilité éventuelle) */
     public static function totalPlatformPlace(): int
     {
         $pdo = self::pdo();

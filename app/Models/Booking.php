@@ -75,7 +75,7 @@ class Booking
 
     public static function delete(int $id): bool { return self::pdo()->prepare("DELETE FROM bookings WHERE id=:id")->execute([':id'=>$id]); }
 
-    /** Participants confirmés d’un trajet (nom + avatar) */
+    /* Participants confirmés d’un trajet (nom + avatar) */
     public static function participantsForRide(int $rideId): array
     {
         $sql = "
@@ -99,7 +99,7 @@ class Booking
         return self::all($sql, [':r' => $rideId]);
     }
 
-    /**
+    /*
      * Passagers confirmés d’un trajet (avec email) — utilisé par GeneralController::endRide()
      * Retourne : id, email, display_name, avatar_path
      */
@@ -127,7 +127,7 @@ class Booking
         return self::all($sql, [':r' => $rideId]);
     }
 
-    /** Compte des trajets terminés (passager confirmé) pour l’utilisateur */
+    /* Compte des trajets terminés (passager confirmé) pour l’utilisateur */
     public static function countCompletedByPassenger(int $userId): int
     {
         $sql = "SELECT COUNT(*)

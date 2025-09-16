@@ -9,7 +9,7 @@ $pref = function($k, $default = 0) use ($prefs) {
   return (string)$v;
 };
 
-/** Calcule l'âge (années pleines) à partir d'une date YYYY-MM-DD */
+/** Calcule l'âge  à partir d'une date YYYY-MM-DD */
 function age_years(?string $dateNaissance): ?int {
   $d = $dateNaissance ? trim($dateNaissance) : '';
   if ($d === '') return null;

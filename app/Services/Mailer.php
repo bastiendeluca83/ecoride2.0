@@ -12,7 +12,7 @@ final class Mailer
 
     public function __construct()
     {
-        // Localise config/app.php
+        /* Localise config/app.php */
         $rootApp = dirname(__DIR__);
         $root    = dirname($rootApp);
         $try = [
@@ -35,12 +35,12 @@ final class Mailer
         $this->m->CharSet = 'UTF-8';
         $this->m->isHTML(true);
 
-        // From
+        /* From */
         $fromEmail = (string)($cfg['from_email'] ?? 'no-reply@ecoride.fr');
         $fromName  = (string)($cfg['from_name']  ?? 'EcoRide');
         $this->m->setFrom($fromEmail, $fromName);
 
-        // Auth si username non vide
+        /* Auth si username non vide */
         $hasUser = ((string)($cfg['username'] ?? '') !== '');
         $this->m->SMTPAuth = $hasUser;
         if ($hasUser) {
@@ -48,7 +48,7 @@ final class Mailer
             $this->m->Password = (string)($cfg['password'] ?? '');
         }
 
-        // Chiffrement
+        /* Chiffrement */
         $enc = strtolower(trim((string)($cfg['encryption'] ?? '')));
         if ($enc === 'ssl') {
             $this->m->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;    // 465
@@ -58,7 +58,7 @@ final class Mailer
             $this->m->SMTPSecure = false; // MailHog (pas de TLS)
         }
 
-        // Debug (optionnel)
+        /* Debug */
         $debug = (int)($cfg['debug'] ?? 0);
         if ($debug > 0) {
             $this->m->SMTPDebug   = 2;
@@ -81,7 +81,7 @@ final class Mailer
         }
     }
 
-    /* ========= Cas EcoRide ========= */
+    /* Cas EcoRide */
 
     public function sendRidePublished(array $driver, array $ride): bool
     {
@@ -119,7 +119,7 @@ final class Mailer
         );
     }
 
-    /** >>> Invitation à laisser un avis (après fin de trajet) */
+    /* Invitation à laisser un avis (après fin de trajet) */
     public function sendReviewInvite(array $passenger, array $ride, array $driver, string $link): bool
     {
         $subject = "Votre avis sur le trajet “{$ride['from_city']} → {$ride['to_city']}”";

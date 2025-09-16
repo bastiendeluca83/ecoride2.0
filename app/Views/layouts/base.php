@@ -1,8 +1,5 @@
 <?php
-/**
- * Layout global EcoRide (MVC)
- * Emplacement : app/Views/layouts/base.php
- */
+/* Layout global EcoRide (MVC) Emplacement : app/Views/layouts/base.php */
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -23,7 +20,7 @@ if (empty($_SESSION['csrf'])) {
 
 $currentUrl = $_SERVER['REQUEST_URI'] ?? '/';
 
-/* >>> SEULE AJOUTE IMPORTANTE : détecter la page covoiturage <<< */
+/*  détecter la page covoiturage */
 $isCovoiturage = (strpos($currentUrl ?? '/', '/covoiturage') === 0);
 
 /* Avatar */

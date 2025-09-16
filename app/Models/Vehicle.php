@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use App\Db\Sql; // même helper que tes autres modèles
+use App\Db\Sql; 
 use PDO;
 
 final class Vehicle

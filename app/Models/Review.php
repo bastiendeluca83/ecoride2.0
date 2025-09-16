@@ -19,7 +19,7 @@ final class Review
 
     private function c(): ?Collection { return $this->col; }
 
-    /** Crée un avis en statut PENDING (modération employé). */
+    /* Crée un avis en statut PENDING (modération employé). */
     public function create(array $data): bool
     {
         if (!$this->c()) return false;
@@ -44,7 +44,7 @@ final class Review
         return (bool)$res->getInsertedId();
     }
 
-    /** Empêche les doublons pour un couple (ride,passenger). */
+    /* Empêche les doublons pour un couple (ride,passenger). */
     public function existsByRidePassenger(int $rideId, int $passengerId): bool
     {
         if (!$this->c()) return false;
@@ -54,7 +54,7 @@ final class Review
         ]) > 0;
     }
 
-    /** Avis APPROVED d’un conducteur (pour affichage public). */
+    /* Avis APPROVED d’un conducteur (pour affichage public). */
     public function findByDriverApproved(int $driverId, int $limit = 10): array
     {
         if (!$this->c()) return [];
@@ -73,7 +73,7 @@ final class Review
         return $out;
     }
 
-    /** Moyenne des notes APPROVED pour un conducteur. */
+    /* Moyenne des notes APPROVED pour un conducteur. */
     public function avgForDriver(int $driverId): ?float
     {
         if (!$this->c()) return null;
@@ -87,7 +87,7 @@ final class Review
         return $avg > 0 ? round($avg, 1) : null;
     }
 
-    /** Avis en attente pour l’employé. */
+    /* Avis en attente pour l’employé. */
     public function findPending(int $limit = 100): array
     {
         if (!$this->c()) return [];

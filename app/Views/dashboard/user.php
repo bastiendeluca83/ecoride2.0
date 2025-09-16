@@ -8,7 +8,7 @@ if (!function_exists('e')) {
   function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 }
 
-/** Calcule l'âge (années pleines) à partir d'une date YYYY-MM-DD */
+/* Calcule l'âge (années pleines) à partir d'une date YYYY-MM-DD */
 if (!function_exists('age_years')) {
   function age_years(?string $dateNaissance): ?int {
     $d = $dateNaissance ? trim($dateNaissance) : '';
@@ -223,7 +223,7 @@ $stats = $stats ?? ['completed_total'=>0,'co2_total'=>0,'co2_per_trip'=>2.5];
                       </div>
                     </div>
 
-                    <!-- AJOUT : conducteur -->
+                    <!-- conducteur -->
                     <?php $d = $res['driver'] ?? null; ?>
                     <?php if ($d): ?>
                       <div class="d-flex align-items-center gap-2 mb-2">
@@ -243,7 +243,7 @@ $stats = $stats ?? ['completed_total'=>0,'co2_total'=>0,'co2_per_trip'=>2.5];
                         <span class="badge bg-light text-dark border">Conducteur</span>
                       </div>
                     <?php endif; ?>
-                    <!-- FIN AJOUT -->
+                    <!-- /conducteur -->  
 
                     <div class="mb-2">
                       <div class="d-flex align-items-center mb-1">

@@ -5,7 +5,7 @@ namespace App\Security;
 
 final class Security
 {
-    /* ========= AUTH ========= */
+    /*  AUTH  */
 
     public static function check(): bool
     {
@@ -42,7 +42,7 @@ final class Security
         header('Location: /'); exit;
     }
 
-    /* ========= CSRF ========= */
+    /*  CSRF */
 
     public static function csrfToken(): string
     {
@@ -74,7 +74,7 @@ final class Security
         return $_SESSION['csrf'];
     }
 
-    /* ========= Tokens d'avis (signature HMAC) ========= */
+    /* Tokens d'avis (signature)  */
 
     private static function appKey(): string
     {
@@ -86,7 +86,7 @@ final class Security
         return $k;
     }
 
-    /**
+    /*
      * Crée un token signé pour envoyer un lien d’avis.
      * Format: base64url(json) + '.' + hmac
      */
@@ -105,7 +105,7 @@ final class Security
         return $b64 . '.' . $sig;
     }
 
-    /** Vérifie le token et retourne le payload (ou null) */
+    /* Vérifie le token et retourne le payload (ou null) */
     public static function verifyReviewToken(string $token): ?array
     {
         $parts = explode('.', $token, 2);

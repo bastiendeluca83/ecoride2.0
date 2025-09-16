@@ -43,8 +43,7 @@ class RideController extends BaseController
             $where[] = "TIMESTAMPDIFF(HOUR, r.date_start, r.date_end) <= :dmax";
             $params[':dmax'] = $durationMax;
         }
-        // NB: le filtre minNote s'appuyait sur une table SQL 'reviews' — on l'ignore côté SQL
-        // et on le gèrera éventuellement plus tard via un système de cache/colonne dénormalisée.
+       /* Pour minNote : lié aux reviews, pas géré ici (sera fait plus tard). */
 
         $sql = "
         SELECT
@@ -173,7 +172,7 @@ class RideController extends BaseController
             return;
         }
 
-        // Avis depuis Mongo
+        /* Avis depuis Mongo */
         $reviews = [];
         $avgNote = null;
         try {
@@ -181,7 +180,7 @@ class RideController extends BaseController
             $reviews = $rm->findByDriverApproved((int)$ride['driver_id'], 10);
             $avgNote = $rm->avgForDriver((int)$ride['driver_id']);
         } catch (\Throwable $e) {
-            // Mongo indispo => pas d'avis
+            /* Mongo indispo => pas d'avis */
         }
 
         $this->render('rides/show', compact('ride','reviews','avgNote'));
@@ -246,7 +245,7 @@ class RideController extends BaseController
         $rideId = (int)$_POST['ride_id'];
         $pdo = Sql::pdo();
 
-        $platformFee = 2; // crédits plate-forme
+        $platformFee = 2; /* crédits plate-forme */
 
         try {
             $pdo->beginTransaction();

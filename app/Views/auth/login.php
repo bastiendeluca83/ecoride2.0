@@ -1,11 +1,11 @@
 <?php
-// app/Views/auth/login.php
-// Vue injectée dans layouts/base.php via BaseController::render()
-// NE PAS mettre <html>/<head>/<body> ici.
+/* app/Views/auth/login.php
+ Vue injectée dans layouts/base.php via BaseController::render()
+ */
 if (!function_exists('h')) { function h($v){ return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); } }
 $title = 'Connexion — EcoRide';
 
-// $error peut être fourni par AuthController::login() via render()
+/* $error peut être fourni par AuthController::login() via render() */
 $error = $error ?? null;
 ?>
 

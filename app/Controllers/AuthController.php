@@ -41,7 +41,7 @@ class AuthController extends BaseController
         return $url;
     }
 
-    /* -------------------------- FORMS (vues MVC) -------------------------- */
+    /* -------------------------- FORMS -------------------------- */
 
     public function loginForm(): void {
         $this->render('auth/login', ['title' => 'Connexion – EcoRide']);

@@ -9,7 +9,7 @@ use App\Models\Review;
 
 final class ReviewController extends BaseController
 {
-    /** GET /reviews/new?token=... — Affiche le formulaire d'avis */
+    /* GET /reviews/new?token=... — Affiche le formulaire d'avis */
     public function new(): void
     {
         if (session_status() === \PHP_SESSION_NONE) session_start();
@@ -28,7 +28,7 @@ final class ReviewController extends BaseController
             echo 'Trajet introuvable.'; exit;
         }
 
-        // Assure un CSRF pour le formulaire
+        /*  CSRF pour le formulaire */
         if (empty($_SESSION['csrf'])) {
             $_SESSION['csrf'] = bin2hex(random_bytes(32));
         }
@@ -41,7 +41,7 @@ final class ReviewController extends BaseController
         ]);
     }
 
-    /** POST /reviews — Enregistre l’avis dans Mongo (status=PENDING) */
+    /* POST /reviews — Enregistre l’avis dans Mongo (status=PENDING) */
     public function create(): void
     {
         if (!Security::checkCsrf($_POST['csrf'] ?? null)) {
@@ -69,7 +69,7 @@ final class ReviewController extends BaseController
 
         $reviews = new Review();
 
-        // Anti-doublon par (ride,passenger)
+        /* Anti-doublon par (ride,passenger) */
         if ($reviews->existsByRidePassenger($rideId, $passId)) {
             $_SESSION['flash_error'] = 'Vous avez déjà laissé un avis sur ce trajet.';
             header('Location: ' . BASE_URL); exit;

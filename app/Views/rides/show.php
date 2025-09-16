@@ -1,5 +1,5 @@
 <?php
-// app/Views/rides/show.php
+/* app/Views/rides/show.php */
 if (!function_exists('h')) {
   function h($v){ return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
 }
@@ -20,7 +20,7 @@ $avatar = $ride['driver_avatar'] ?? '';
 if ($avatar && $avatar[0] !== '/') { $avatar = '/'.$avatar; }
 $avatarUrl = $avatar ?: 'https://api.dicebear.com/9.x/initials/svg?seed='.urlencode($driverName);
 
-// helper libellés prefs
+/* helper libellés prefs */
 $prefLabel = function(string $type, $v): string {
     $v = (string)($v ?? '0');
     $labels = [

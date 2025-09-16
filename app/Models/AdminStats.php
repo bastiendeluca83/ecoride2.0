@@ -1,15 +1,14 @@
 <?php
-// ============================================================
-// FILE: app/models/AdminStats.php
-// (Statistiques pour l'admin)
-// ============================================================
+
+/* (Statistiques pour l'admin) */
+
 declare(strict_types=1);
 
 namespace App\Models;
 
 class AdminStats extends BaseModels
 {
-    /**
+    /*
      * Nombre de covoiturages par jour (dans l'intervalle [fromDate, toDate]).
      * Renvoie des lignes { jour: YYYY-MM-DD, nb: int }.
      */
@@ -23,7 +22,7 @@ class AdminStats extends BaseModels
         return self::all($sql, [':a' => $fromDate, ':b' => $toDate]);
     }
 
-    /**
+    /*
      * Crédits plateforme / jour.
      * 1) Si la table 'transactions' est présente: on somme les lignes dont la description
      *    contient 'plate-forme/plateforme' (insensible à la casse).
@@ -36,7 +35,7 @@ class AdminStats extends BaseModels
         string $toDate,
         int $platformFee = 2
     ): array {
-        // 1) via transactions
+        /* 1) via transactions */
         try {
             $sql = "
                 SELECT DATE(created_at) AS jour, COALESCE(SUM(montant),0) AS credits
@@ -50,10 +49,10 @@ class AdminStats extends BaseModels
             $rows = self::all($sql, [':a' => $fromDate, ':b' => $toDate]);
             if ($rows) return $rows;
         } catch (\Throwable $e) {
-            // ignore -> fallback
+            /* ignore -> fallback */
         }
 
-        // 2) fallback via bookings confirmées
+        /* 2) fallback via bookings confirmées */
         $sql = "
             SELECT DATE(b.created_at) AS jour, (COUNT(b.id) * :fee) AS credits
             FROM bookings b
@@ -65,14 +64,14 @@ class AdminStats extends BaseModels
         return self::all($sql, [':a' => $fromDate, ':b' => $toDate, ':fee' => $platformFee]);
     }
 
-    /**
+    /*
      * Total crédits gagnés par la plateforme.
      * - Chemin principal: somme des transactions de commission (description contient 'plate-forme/plateforme')
      * - Fallback: nb de réservations confirmées * 2
      */
     public static function totalCreditsEarned(int $platformFee = 2): int
     {
-        // 1) transactions
+        /* 1) transactions */
         try {
             $row = self::one("
                 SELECT COALESCE(SUM(montant),0) AS total
@@ -83,7 +82,7 @@ class AdminStats extends BaseModels
             if ($row && isset($row['total'])) return (int)$row['total'];
         } catch (\Throwable $e) {}
 
-        // 2) fallback
+        /* 2) fallback */
         $row = self::one("
             SELECT COUNT(*) * :fee AS total
             FROM bookings b
@@ -93,7 +92,7 @@ class AdminStats extends BaseModels
         return (int)($row['total'] ?? 0);
     }
 
-    /**
+    /*
      * Historique détaillé: crédits / jour + liste des ride_id du jour.
      * - Chemin principal: transactions (commission plate-forme)
      * - Fallback: bookings confirmées (2 crédits par réservation)
@@ -105,7 +104,7 @@ class AdminStats extends BaseModels
         string $toDate,
         int $platformFee = 2
     ): array {
-        // 1) transactions
+        /* 1) transactions */
         try {
             $sql = "
                 SELECT
@@ -122,10 +121,10 @@ class AdminStats extends BaseModels
             $rows = self::all($sql, [':a' => $fromDate, ':b' => $toDate]);
             if ($rows) return $rows;
         } catch (\Throwable $e) {
-            // ignore
+            /* ignore */
         }
 
-        // 2) fallback via bookings confirmées
+        /* 2) fallback via bookings confirmées */
         $sql = "
             SELECT
                 DATE(b.created_at) AS jour,

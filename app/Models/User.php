@@ -6,9 +6,7 @@ use PDO;
 
 class User
 {
-    /* =========================
-       Helpers DB
-       ========================= */
+    /* Helpers DB */
     private static function pdo(): \PDO { return Sql::pdo(); }
     private static function one(string $sql, array $p = []): ?array {
         $st = self::pdo()->prepare($sql); $st->execute($p);
@@ -19,9 +17,7 @@ class User
         return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    /* =========================
-       Détection schéma FR/EN + colonne date
-       ========================= */
+    /*  Détection schéma FR/EN + colonne date */
     private static ?bool $useEnglishCols = null;
     private static ?string $dateCol = null;
 
@@ -39,7 +35,7 @@ class User
         return (bool)$st->fetch(PDO::FETCH_ASSOC);
     }
 
-    /** Retourne le nom réel de la colonne date en BDD */
+    /* Retourne le nom réel de la colonne date en BDD */
     private static function dateColumn(): ?string {
         if (self::$dateCol !== null) return self::$dateCol;
         foreach (['date_naissance','date_of_birth','date_of_birth'] as $c) {
@@ -49,9 +45,7 @@ class User
         return null;
     }
 
-    /* =========================
-       CRUD / Auth
-       ========================= */
+    /* CRUD / Auth */
     public static function create(string $pseudo, string $email, string $plainPassword, string $role = 'USER', int $credits = 20): int {
         $hash = password_hash($plainPassword, PASSWORD_BCRYPT);
         $sql = "INSERT INTO users(nom,email,password_hash,role,credits,created_at) VALUES(:p,:e,:h,:r,:c,NOW())";
@@ -99,9 +93,7 @@ class User
         return (bool)$st->fetchColumn();
     }
 
-    /* =========================
-       Profil (FR/EN mapping) — compat date
-       ========================= */
+    /* Profil (FR/EN mapping) — compat date */
     public static function findById(int $id): ?array {
         $dateCol = self::dateColumn();
         $dateSel = $dateCol ? "$dateCol AS date_naissance" : "NULL AS date_naissance";
@@ -192,9 +184,7 @@ class User
         }
     }
 
-    /* =========================
-       Complétude du profil
-       ========================= */
+    /* Complétude du profil */
     public static function passwordIsSet(int $id): bool {
         $st = self::pdo()->prepare('SELECT password_hash FROM users WHERE id=:id');
         $st->execute([':id'=>$id]);
@@ -219,15 +209,13 @@ class User
         return ['complete' => count($missing) === 0, 'missing' => $missing];
     }
 
-    /* =========================
-       AJOUTS pour AdminController
-       ========================= */
+    /* AJOUTS pour AdminController */
 
     public static function createEmployee(string $email, string $password, ?string $nom = null, ?string $prenom = null): int
     {
         $pdo = self::pdo();
 
-        // Unicité email
+        /* Unicité email */
         $st = $pdo->prepare("SELECT id FROM users WHERE email = :e LIMIT 1");
         $st->execute([':e' => $email]);
         if ($st->fetchColumn()) {
@@ -236,7 +224,7 @@ class User
 
         $hash = password_hash($password, PASSWORD_DEFAULT);
 
-        // Colonnes/valeurs dynamiques selon le schéma
+        /* Colonnes/valeurs dynamiques selon le schéma */
         $cols = ['email'];
         $vals = [':email' => $email];
 
@@ -249,7 +237,7 @@ class User
         if (self::colExists('is_suspended')) { $cols[] = 'is_suspended'; $vals[':susp'] = 0; }
         elseif (self::colExists('suspended')) { $cols[] = 'suspended';   $vals[':susp'] = 0; }
 
-        // nom/prenom compatibles FR/EN
+        /* nom/prenom compatibles FR/EN */
         if ($nom !== null) {
             if (self::colExists('nom'))         { $cols[] = 'nom';        $vals[':nom'] = $nom; }
             elseif (self::colExists('last_name')) { $cols[] = 'last_name'; $vals[':nom'] = $nom; }
@@ -262,7 +250,7 @@ class User
 
         if (self::colExists('created_at')) { $cols[] = 'created_at'; $vals[':created'] = (new \DateTimeImmutable())->format('Y-m-d H:i:s'); }
 
-        // Build INSERT
+        /* Build INSERT */
         $placeholders = [];
         foreach ($vals as $k => $_) { $placeholders[] = $k; }
 
@@ -289,9 +277,7 @@ class User
         return $st->execute([':v' => ($suspend ? 1 : 0), ':id' => $userId]);
     }
 
-    /* =========================
-       Recharge auto si >= intervalle
-       ========================= */
+    /* Recharge auto si >= intervalle */
     public static function topUpCreditsIfDue(int $userId, int $amount, string $intervalSpec = 'P14D'): bool {
         try {
             $threshold = (new \DateTimeImmutable())->sub(new \DateInterval($intervalSpec))->format('Y-m-d H:i:s');

@@ -1,6 +1,6 @@
 <?php
-// app/Views/auth/signup.php
-// Vue injectée dans layouts/base.php via BaseController::render()
+/* app/Views/auth/signup.php
+ Vue injectée dans layouts/base.php via BaseController::render() */
 if (!function_exists('h')) { function h($v){ return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); } }
 $title = 'Créer un compte — EcoRide';
 

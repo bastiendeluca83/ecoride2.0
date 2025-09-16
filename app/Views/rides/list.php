@@ -1,11 +1,11 @@
 <?php
-// app/Views/rides/list.php
+/* app/Views/rides/list.php */
 
 if (!function_exists('h')) {
   function h($v){ return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
 }
 
-/** Badge (libellés fidèles à ton formulaire profil) */
+/* Badge  */
 $prefBadge = function(string $type, $raw, string $icon) {
     $v = (string)($raw ?? '0');
 

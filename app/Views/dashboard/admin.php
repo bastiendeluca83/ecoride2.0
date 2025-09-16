@@ -90,9 +90,9 @@ if (!function_exists('e')) { function e($s){ return htmlspecialchars((string)$s,
     </div>
   </div>
 
-  <!-- ======================= -->
-  <!-- NOUVEAU : Historique    -->
-  <!-- ======================= -->
+  <!--  -->
+  <!--Historique-->
+  
   <hr class="my-4">
   <section class="card shadow-sm mb-4">
     <div class="card-body">
@@ -193,7 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const $canvas = document.getElementById('creditsHistoryChart');
   let chart;
 
-  // Formateur FR: 'YYYY-MM-DD' -> 'DD/MM/YYYY'
+  /* Formateur FR: 'YYYY-MM-DD' -> 'DD/MM/YYYY' */
   const fmtFR = (ymd) => {
     if (!ymd) return '';
     const [y, m, d] = String(ymd).split('-');
@@ -203,11 +203,11 @@ document.addEventListener('DOMContentLoaded', () => {
   async function loadData(days){
     const res  = await fetch(`/admin/api/credits-history?days=${encodeURIComponent(days)}`, { credentials: 'same-origin' });
     const json = await res.json();
-    // labels & série
+    /*labels & série */
     const labels  = json.data.map(r => r.day || r.jour);
     const credits = json.data.map(r => r.credits);
 
-    // Tooltips incluent les ride_ids
+    /* Tooltips incluent les ride_ids */
     const rideIds = json.data.map(r => r.ride_ids || '');
 
     if (chart) chart.destroy();

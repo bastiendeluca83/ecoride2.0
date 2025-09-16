@@ -19,7 +19,7 @@ final class Mongo
 
         try {
             $client = new Client($uri, ['serverSelectionTimeoutMS' => 2000]);
-            // Ping pour s'assurer que le serveur répond
+            /* Ping pour s'assurer que le serveur répond */
             $client->selectDatabase('admin')->command(['ping' => 1]);
             self::$db = $client->selectDatabase($name);
             return self::$db;
