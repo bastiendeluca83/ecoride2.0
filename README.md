@@ -82,10 +82,7 @@ docker compose exec db sh -lc "mysql -uroot -proot ecoride < /docker-entrypoint-
 - Script d’initialisation : `docker/mysql-init/init.sql` (création des tables + INSERT de test si présents).  
 - Ajouter d’autres `.sql` dans `docker/mysql-init/` si nécessaire (exécutés au 1er démarrage).
 
-## 8 Identifiants de test (exemple)
-- **Administrateur** : `admin@ecoride.fr` / `Victoria13@`  
-- **Employé** : `employee@example.com` / `Victoria13@`  
-- **Utilisateur** : `admin@example.com` / `Victoria13@`  
+  
 
 ## 9 Sécurité & notes
 - Mots de passe hachés (PHP `password_hash()` / `password_verify()`)
