@@ -2,6 +2,7 @@
 /** @var string|null $error */
 /** @var string|null $token */
 /** @var array|null  $ride */
+/** @var string|null $csrf */
 if (!function_exists('e')) { function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); } }
 ?>
 <div class="container my-4">
@@ -15,13 +16,18 @@ if (!function_exists('e')) { function e($s){ return htmlspecialchars((string)$s,
   <?php if ($ride): ?>
     <div class="card mb-3"><div class="card-body">
       <div><strong>Trajet :</strong> <?= e($ride['from_city'] ?? '') ?> → <?= e($ride['to_city'] ?? '') ?></div>
-      <div><strong>Date :</strong> <?= !empty($ride['date_end']) ? e(date('d/m/Y H:i', strtotime($ride['date_end']))) : e(date('d/m/Y H:i', strtotime($ride['date_start'] ?? 'now'))) ?></div>
+      <div><strong>Date :</strong>
+        <?= !empty($ride['date_end'])
+              ? e(date('d/m/Y H:i', strtotime($ride['date_end'])))
+              : e(date('d/m/Y H:i', strtotime($ride['date_start'] ?? 'now'))) ?>
+      </div>
     </div></div>
   <?php endif; ?>
 
   <form method="post" action="/reviews" class="card">
     <div class="card-body">
       <input type="hidden" name="token" value="<?= e($token ?? '') ?>">
+      <input type="hidden" name="csrf"  value="<?= e($csrf ?? ($_SESSION['csrf'] ?? '')) ?>">
 
       <div class="mb-3">
         <label class="form-label">Note</label>

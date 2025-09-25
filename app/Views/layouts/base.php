@@ -103,8 +103,8 @@ if ($showProfileBanner) {
 <nav class="navbar navbar-expand-lg navbar-light" style="background-color:#18a558;">
   <div class="container">
     <a class="navbar-brand d-flex align-items-center text-white" href="/">
-      <img src="/assets/img/logo-emp-light.png" alt="EcoRide" style="height:36px" class="me-2">
-      <span class="fw-semibold d-none d-sm-inline">EcoRide</span>
+      <img src="/assets/img/favicon-emp.png" alt="EcoRide" style="height:36px" class="me-2">
+      
     </a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
       <span class="navbar-toggler-icon"></span>

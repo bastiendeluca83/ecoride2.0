@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Db\Mongo;
-use MongoDB\BSON\ObjectId;
 use MongoDB\Collection;
 
 final class Review
@@ -114,7 +113,7 @@ final class Review
     {
         if (!$this->c() || !$this->isValidObjectId($id)) return false;
         $res = $this->c()->updateOne(
-            ['_id' => new ObjectId($id), 'status' => 'PENDING'],
+            ['_id' => new \MongoDB\BSON\ObjectId($id), 'status' => 'PENDING'],
             ['$set' => [
                 'status'       => 'APPROVED',
                 'moderated_by' => $moderatorId,
@@ -129,7 +128,7 @@ final class Review
     {
         if (!$this->c() || !$this->isValidObjectId($id)) return false;
         $res = $this->c()->updateOne(
-            ['_id' => new ObjectId($id), 'status' => 'PENDING'],
+            ['_id' => new \MongoDB\BSON\ObjectId($id), 'status' => 'PENDING'],
             ['$set' => [
                 'status'        => 'REJECTED',
                 'reject_reason' => $reason,
@@ -143,7 +142,7 @@ final class Review
 
     private function isValidObjectId(string $id): bool
     {
-        try { new ObjectId($id); return true; }
+        try { new \MongoDB\BSON\ObjectId($id); return true; }
         catch (\Throwable $e) { return false; }
     }
 }

@@ -2,7 +2,7 @@
 /** @var array $driver */
 /** @var array $ride */
 /** @var array $passenger */
-function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
+if (!function_exists('e')) { function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); } }
 ?>
 <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:640px;margin:auto;">
   <h2>Nouvelle réservation ✉️</h2>

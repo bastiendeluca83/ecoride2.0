@@ -105,6 +105,16 @@ final class Security
         return $b64 . '.' . $sig;
     }
 
+    /**
+     * Génère un token d'avis à partir d'un TTL lisible (ex: '+7 days', '+2 hours').
+     * Je l'utilise côté service d'invitations pour éviter de calculer l'expiration à la main.
+     */
+    public static function issueReviewToken(int $rideId, int $passengerId, string $ttl = '+7 days'): string
+    {
+        $exp = (new \DateTimeImmutable($ttl))->getTimestamp();
+        return self::signReviewToken($rideId, $passengerId, $exp);
+    }
+
     /* Vérifie le token et retourne le payload (ou null) */
     public static function verifyReviewToken(string $token): ?array
     {

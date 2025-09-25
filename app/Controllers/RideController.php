@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Db\Sql;
+use App\Services\Mailer;
 use PDO;
 
 class RideController extends BaseController
@@ -43,7 +44,6 @@ class RideController extends BaseController
             $where[] = "TIMESTAMPDIFF(HOUR, r.date_start, r.date_end) <= :dmax";
             $params[':dmax'] = $durationMax;
         }
-       /* Pour minNote : lié aux reviews, pas géré ici (sera fait plus tard). */
 
         $sql = "
         SELECT
@@ -172,7 +172,6 @@ class RideController extends BaseController
             return;
         }
 
-        /* Avis depuis Mongo */
         $reviews = [];
         $avgNote = null;
         try {
@@ -180,7 +179,6 @@ class RideController extends BaseController
             $reviews = $rm->findByDriverApproved((int)$ride['driver_id'], 10);
             $avgNote = $rm->avgForDriver((int)$ride['driver_id']);
         } catch (\Throwable $e) {
-            /* Mongo indispo => pas d'avis */
         }
 
         $this->render('rides/show', compact('ride','reviews','avgNote'));
@@ -245,7 +243,7 @@ class RideController extends BaseController
         $rideId = (int)$_POST['ride_id'];
         $pdo = Sql::pdo();
 
-        $platformFee = 2; /* crédits plate-forme */
+        $platformFee = 2;
 
         try {
             $pdo->beginTransaction();
@@ -327,6 +325,36 @@ class RideController extends BaseController
             ]);
 
             $pdo->commit();
+
+            // envois e-mails : confirmation (passager) + nouvelle réservation (conducteur)
+            $m = new Mailer();
+
+            $passenger = $pdo->prepare("SELECT id, email, prenom, nom FROM users WHERE id = ? LIMIT 1");
+            $passenger->execute([$userId]);
+            $p = $passenger->fetch(PDO::FETCH_ASSOC) ?: [];
+
+            $driver = $pdo->prepare("SELECT id, email, prenom, nom FROM users WHERE id = ? LIMIT 1");
+            $driver->execute([(int)$ride['driver_id']]);
+            $d = $driver->fetch(PDO::FETCH_ASSOC) ?: [];
+
+            $passengerArr = [
+                'id'     => (int)($p['id'] ?? 0),
+                'email'  => (string)($p['email'] ?? ''),
+                'pseudo' => (string)($p['prenom'] ?? $p['nom'] ?? 'Passager'),
+                'nom'    => (string)($p['nom'] ?? ''),
+            ];
+            $driverArr = [
+                'id'           => (int)($d['id'] ?? 0),
+                'email'        => (string)($d['email'] ?? ''),
+                'pseudo'       => (string)($d['prenom'] ?? $d['nom'] ?? 'Chauffeur'),
+                'nom'          => (string)($d['nom'] ?? ''),
+                'display_name' => trim((string)($d['prenom'] ?? '') . ' ' . (string)($d['nom'] ?? '')),
+            ];
+
+            if (!empty($passengerArr['email']) && !empty($driverArr['email'])) {
+                $m->sendBookingConfirmation($passengerArr, $ride, $driverArr);
+                $m->sendDriverNewReservation($driverArr, $ride, $passengerArr);
+            }
 
             $_SESSION['flash'][] = ['type'=>'success','text'=>'Réservation confirmée 👍'];
             header('Location: /rides/show?id='.$rideId);

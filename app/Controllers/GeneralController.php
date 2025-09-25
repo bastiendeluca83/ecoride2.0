@@ -397,6 +397,36 @@ final class GeneralController extends BaseController
                 }
             }
 
+            /* Prépare et enregistre l'envoi du mail après la réponse, sans bloquer */
+            if ($ok) {
+                $rideForMail = [
+                    'from_city'  => (string)($payload['from_city']  ?? ''),
+                    'to_city'    => (string)($payload['to_city']    ?? ''),
+                    'date_start' => (string)($payload['date_start'] ?? ''),
+                    'date_end'   => (string)($payload['date_end']   ?? ''),
+                    'price'      => (int)($payload['price']         ?? 0),
+                    'seats'      => (int)($payload['seats']         ?? 0),
+                    'seats_left' => (int)($payload['seats']         ?? 0),
+                ];
+
+                register_shutdown_function(function() use ($uid, $rideForMail) {
+                    try {
+                        $driverUser = \App\Models\User::findById($uid) ?: [];
+                        $email = (string)($driverUser['email'] ?? '');
+                        if ($email !== '') {
+                            $driver = [
+                                'email'  => $email,
+                                'pseudo' => (string)($driverUser['prenom'] ?? $driverUser['nom'] ?? 'Chauffeur'),
+                                'nom'    => (string)($driverUser['nom'] ?? ''),
+                            ];
+                            (new Mailer())->sendRidePublished($driver, $rideForMail);
+                        }
+                    } catch (\Throwable $e) {
+                        error_log('[MAIL createRide shutdown] ' . $e->getMessage());
+                    }
+                });
+            }
+
             if ($ok) {
                 $_SESSION['flash_success'] = 'Trajet publié.';
                 header('Location: ' . BASE_URL . 'user/dashboard'); exit;

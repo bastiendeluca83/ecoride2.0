@@ -12,7 +12,6 @@ final class Mailer
 
     public function __construct()
     {
-        /* Localise config/app.php */
         $rootApp = dirname(__DIR__);
         $root    = dirname($rootApp);
         $try = [
@@ -35,30 +34,29 @@ final class Mailer
         $this->m->CharSet = 'UTF-8';
         $this->m->isHTML(true);
 
-        /* From */
         $fromEmail = (string)($cfg['from_email'] ?? 'no-reply@ecoride.fr');
         $fromName  = (string)($cfg['from_name']  ?? 'EcoRide');
         $this->m->setFrom($fromEmail, $fromName);
 
-        /* Auth si username non vide */
-        $hasUser = ((string)($cfg['username'] ?? '') !== '');
-        $this->m->SMTPAuth = $hasUser;
-        if ($hasUser) {
-            $this->m->Username = (string)$cfg['username'];
-            $this->m->Password = (string)($cfg['password'] ?? '');
+        $username = (string)($cfg['username'] ?? '');
+        $password = (string)($cfg['password'] ?? '');
+        $enc      = strtolower(trim((string)($cfg['encryption'] ?? '')));
+
+        $hasUser  = ($username !== '');
+        $this->m->SMTPAuth = $hasUser || in_array($enc, ['tls','ssl'], true);
+        if ($this->m->SMTPAuth) {
+            $this->m->Username = $username;
+            $this->m->Password = $password;
         }
 
-        /* Chiffrement */
-        $enc = strtolower(trim((string)($cfg['encryption'] ?? '')));
         if ($enc === 'ssl') {
-            $this->m->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;    // 465
+            $this->m->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
         } elseif ($enc === 'tls') {
-            $this->m->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS; // 587
+            $this->m->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         } else {
-            $this->m->SMTPSecure = false; // MailHog (pas de TLS)
+            $this->m->SMTPSecure = false;
         }
 
-        /* Debug */
         $debug = (int)($cfg['debug'] ?? 0);
         if ($debug > 0) {
             $this->m->SMTPDebug   = 2;
@@ -81,7 +79,7 @@ final class Mailer
         }
     }
 
-    /* Cas EcoRide */
+    /* --------- EXISTANT --------- */
 
     public function sendRidePublished(array $driver, array $ride): bool
     {
@@ -119,7 +117,6 @@ final class Mailer
         );
     }
 
-    /* Invitation à laisser un avis (après fin de trajet) */
     public function sendReviewInvite(array $passenger, array $ride, array $driver, string $link): bool
     {
         $subject = "Votre avis sur le trajet “{$ride['from_city']} → {$ride['to_city']}”";
@@ -137,10 +134,48 @@ final class Mailer
         );
     }
 
+    /* --------- AJOUT INSCRIPTION --------- */
+
+    public function sendWelcome(array $user): bool
+    {
+        $subject = "Bienvenue sur EcoRide 👋";
+        $html    = $this->render('signup_welcome', ['user' => $user]);
+        return $this->send(
+            (string)$user['email'],
+            (string)($user['pseudo'] ?? $user['nom'] ?? 'Utilisateur'),
+            $subject,
+            $html
+        );
+    }
+
+    public function sendVerifyEmail(array $user, string $link): bool
+    {
+        $subject = "Confirmez votre adresse e-mail";
+        $html    = $this->render('signup_verify', ['user' => $user, 'link' => $link]);
+        return $this->send(
+            (string)$user['email'],
+            (string)($user['pseudo'] ?? $user['nom'] ?? 'Utilisateur'),
+            $subject,
+            $html
+        );
+    }
+
     private function render(string $template, array $vars): string
     {
-        $file = dirname(__DIR__) . "/Views/emails/{$template}.php";
+        // Dossier 'email' (singulier)
+        $base = dirname(__DIR__);
+        $file = $base . "/Views/email/{$template}.php";
+        if (!is_file($file)) {
+            // fallback éventuels
+            $alt = $base . "/views/email/{$template}.php";
+            if (is_file($alt)) $file = $alt;
+        }
         if (!is_file($file)) return "<p>Template manquant: {$template}</p>";
+
+        // helpers communs (définition unique de e()/esc())
+        $helpers = $base . "/Views/email/_helpers.php";
+        if (is_file($helpers)) { include_once $helpers; }
+
         extract($vars, EXTR_SKIP);
         ob_start(); include $file; return (string)ob_get_clean();
     }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Db\Sql;
+use App\Services\Mailer;          // ajout : envoi des mails
+use App\Security\Security;        // ajout : signature/lecture du token
 
 class AuthController extends BaseController
 {
@@ -54,7 +56,7 @@ class AuthController extends BaseController
     /* ------------------------------- ACTIONS ------------------------------- */
 
     public function signup(): void {
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (session_status() === \PHP_SESSION_NONE) session_start();
 
         $pdo = Sql::pdo();
         $initialCredits = 20;
@@ -84,20 +86,47 @@ class AuthController extends BaseController
             $stmt = $pdo->prepare("INSERT INTO users (nom, prenom, adresse, telephone, email, password_hash, role, credits, is_suspended)
                                    VALUES (?, ?, ?, ?, ?, ?, 'USER', ?, 0)");
             $stmt->execute([$nom,$prenom,$adresse,$telephone?:null,$email,password_hash($pass,PASSWORD_BCRYPT),$initialCredits]);
+            $uid = (int)$pdo->lastInsertId();
         } catch (\PDOException $e) {
             $msg = "Erreur : ".$e->getMessage();
             $this->render('auth/signup',['title'=>'Créer un compte – EcoRide','error'=>$msg]); return;
         }
 
+        // Session utilisateur
         $_SESSION['user'] = [
-            'id'=>(int)$pdo->lastInsertId(),'role'=>'USER','nom'=>$nom,'prenom'=>$prenom,'adresse'=>$adresse,
+            'id'=>$uid,'role'=>'USER','nom'=>$nom,'prenom'=>$prenom,'adresse'=>$adresse,
             'telephone'=>$telephone?:null,'email'=>$email,'credits'=>$initialCredits,'is_suspended'=>0
         ];
+
+        // Envoi des mails (bienvenue + vérification)
+        try {
+            $user = [
+                'id' => $uid,
+                'email' => $email,
+                'pseudo' => $prenom ?: $nom,
+                'nom' => $nom,
+            ];
+            $base = getenv('BASE_URL') ?: 'http://localhost:8080';
+
+            // Lien de vérif : je réutilise Security::signReviewToken en mettant uid comme rid/pid
+            $exp   = time() + 86400*7; // 7 jours
+            $token = Security::signReviewToken($uid, $uid, $exp);
+            $link  = rtrim($base,'/') . '/verify-email?token=' . $token;
+
+            $mailer = new Mailer();
+            $mailer->sendWelcome($user);
+            $mailer->sendVerifyEmail($user, $link);
+        } catch (\Throwable $e) {
+            // Je ne bloque pas l'inscription si l'envoi échoue
+            error_log('[signup mail] ' . $e->getMessage());
+        }
+
+        // Redirection classique (tu peux switch sur /login si tu veux forcer la vérif avant usage)
         header('Location: /dashboard'); exit;
     }
 
     public function login(): void {
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (session_status() === \PHP_SESSION_NONE) session_start();
         $pdo = Sql::pdo();
 
         $identifier = trim($_POST['email'] ?? '');
@@ -128,7 +157,7 @@ class AuthController extends BaseController
     }
 
     public function logout(): void {
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (session_status() === \PHP_SESSION_NONE) session_start();
         $_SESSION = [];
         if (ini_get('session.use_cookies')) {
             $p = session_get_cookie_params();
@@ -137,7 +166,38 @@ class AuthController extends BaseController
         session_destroy();
         session_start(); session_regenerate_id(true);
 
-        // Retourne à l’accueil
         header('Location: /?logged_out=1'); exit;
+    }
+
+    /* ----------------------------- Vérification e-mail ----------------------------- */
+
+    public function verifyEmail(): void
+    {
+        if (session_status() === \PHP_SESSION_NONE) session_start();
+        $pdo = Sql::pdo();
+
+        $token = (string)($_GET['token'] ?? '');
+        $claims = $token ? Security::verifyReviewToken($token) : null; // je réutilise le verify existant
+        if (!$claims || !isset($claims['rid'], $claims['pid']) || (int)$claims['rid'] !== (int)$claims['pid']) {
+            $_SESSION['flash_error'] = 'Lien de vérification invalide ou expiré.';
+            header('Location: /login'); exit;
+        }
+
+        $uid = (int)$claims['rid'];
+
+        try {
+            // OK si la colonne existe. Sinon, voir ALTER TABLE dans la note.
+            $st = $pdo->prepare("UPDATE users SET email_verified_at = NOW() WHERE id = ? AND (email_verified_at IS NULL OR email_verified_at = '0000-00-00 00:00:00')");
+            $st->execute([$uid]);
+            $_SESSION['flash_success'] = $st->rowCount() > 0
+                ? 'Adresse e-mail vérifiée. Vous pouvez utiliser toutes les fonctionnalités.'
+                : 'Adresse déjà vérifiée.';
+        } catch (\PDOException $e) {
+            // Si la colonne manque, je ne casse pas l UX
+            error_log('[verify-email] ' . $e->getMessage());
+            $_SESSION['flash_error'] = "La vérification n'a pas pu être appliquée (contacte l'admin).";
+        }
+
+        header('Location: /login'); exit;
     }
 }

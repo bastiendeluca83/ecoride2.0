@@ -18,7 +18,7 @@ return [
     'base_url' => '/',
   ],
     'mail' => [
-    'host'       => getenv('MAIL_HOST') ?: 'localhost',
+    'host'       => getenv('MAIL_HOST') ?: 'smtp.gmail.com',
     'port'       => (int)(getenv('MAIL_PORT') ?: 587),
     'username'   => getenv('MAIL_USERNAME') ?: '',
     'password'   => getenv('MAIL_PASSWORD') ?: '',

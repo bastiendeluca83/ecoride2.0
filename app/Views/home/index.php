@@ -74,7 +74,7 @@ $title = 'Accueil – EcoRide';
     </div>
     <div class="col-md-4">
       <div class="card h-100 border-0 shadow-sm">
-        <img src="/assets/img/photo-home-page-3.jpg" class="card-img-top" alt="Économies sur les trajets">
+        <img src="/assets/img/car-9717482_640.jpg" class="card-img-top" alt="Économies sur les trajets">
         <div class="card-body">
           <h3 class="h6 fw-semibold">Économies</h3>
           <p class="mb-0 small text-muted">Partagez les frais, voyagez à moindre coût.</p>
@@ -83,7 +83,7 @@ $title = 'Accueil – EcoRide';
     </div>
     <div class="col-md-4">
       <div class="card h-100 border-0 shadow-sm">
-        <img src="/assets/img/photo-home-page-4.jpg" class="card-img-top" alt="Trajets plus écologiques">
+        <img src="/assets/img/driver-8563415_640.jpg" class="card-img-top" alt="Trajets plus écologiques">
         <div class="card-body">
           <h3 class="h6 fw-semibold">Écologie</h3>
           <p class="mb-0 small text-muted">Privilégiez les trajets en véhicule électrique.</p>

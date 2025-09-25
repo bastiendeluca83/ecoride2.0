@@ -5,21 +5,17 @@ services:
     ports:
       - "8080:80"
     environment:
-      # --- MySQL ---
       DB_HOST: db
       DB_NAME: ecoride
       DB_USER: ecoride_user
       DB_PASS: ecoride_password
 
-      # --- MongoDB (URI + DB) ---
       MONGO_URI: mongodb://root:secret@mongo:27017/?authSource=admin
       MONGO_DB: ecoride
 
-      # --- Divers ---
       TIMEZONE: Europe/Paris
       DEBUG: "1"
 
-      # --- SMTP (PHPMailer) ---
       MAIL_HOST: smtp.gmail.com
       MAIL_PORT: "587"
       MAIL_USERNAME: ecoride.demo@gmail.com
@@ -67,7 +63,6 @@ services:
   mongo:
     image: mongo:7
     container_name: ecoride_mongo
-    # (ports supprimés pour éviter tout conflit et sécuriser l'accès)
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: secret
@@ -82,12 +77,11 @@ services:
     networks:
       - ecoride_network
 
-  # UI d'audit Mongo en lecture seule, accessible uniquement en local
   mongo-express:
     image: mongo-express:latest
     container_name: ecoride_mexpress
     ports:
-      - "127.0.0.1:8082:8081"   # http://localhost:8082
+      - "127.0.0.1:8082:8081"
     environment:
       ME_CONFIG_MONGODB_SERVER: mongo
       ME_CONFIG_MONGODB_PORT: "27017"
@@ -95,8 +89,6 @@ services:
       ME_CONFIG_MONGODB_AUTH_DATABASE: admin
       ME_CONFIG_MONGODB_ADMINUSERNAME: root
       ME_CONFIG_MONGODB_ADMINPASSWORD: secret
-
-      # Auth UI + lecture seule
       ME_CONFIG_BASICAUTH_USERNAME: audit
       ME_CONFIG_BASICAUTH_PASSWORD: audit-pass
       ME_CONFIG_SITE_READONLY: "true"
@@ -106,21 +98,6 @@ services:
     restart: unless-stopped
     networks:
       - ecoride_network
-
-  # Outil d'export/dump pour les audits (pas de port exposé)
-  mongo-tools:
-    image: mongodb/mongodb-database-tools:ubuntu2204
-    container_name: ecoride_mtools
-    # Pas de démarrage auto ; on l'utilise avec `docker compose run --rm mongo-tools ...`
-    command: ["sleep", "infinity"]
-    depends_on:
-      mongo:
-        condition: service_healthy
-    volumes:
-      - ./backups:/backups   # dumps/exports seront écrits ici
-    networks:
-      - ecoride_network
-    restart: "no"
 
   phpmyadmin:
     image: phpmyadmin/phpmyadmin:latest
@@ -137,16 +114,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - ecoride_network
-
-  mailhog:
-    image: mailhog/mailhog:latest
-    container_name: ecoride_mailhog
-    ports:
-      - "1025:1025"   # SMTP
-      - "8025:8025"   # UI
     restart: unless-stopped
     networks:
       - ecoride_network

@@ -26,7 +26,7 @@ $error = $error ?? null;
             <input type="hidden" name="csrf" value="<?= h($_SESSION['csrf']) ?>">
 
             <div class="mb-3">
-              <label for="email" class="form-label">Email ou nom</label>
+              <label for="email" class="form-label">Email</label>
               <input type="text" name="email" id="email" class="form-control" required autofocus>
             </div>
 

@@ -2,8 +2,10 @@
 namespace App\Models;
 
 use App\Db\Mongo;
-use MongoDB\BSON\ObjectId;
 use MongoDB\Collection;
+
+// Add this import for ObjectId
+use MongoDB\BSON\ObjectId;
 
 final class ReviewModel
 {

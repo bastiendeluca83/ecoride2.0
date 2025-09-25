@@ -37,6 +37,7 @@ $router->get('/login',                     [AuthController::class, 'loginForm'])
 $router->post('/login',                    [AuthController::class, 'login']);
 $router->get('/logout',                    [AuthController::class, 'logout']);
 $router->post('/logout',                   [AuthController::class, 'logout']);
+$router->get('/verify-email',              [AuthController::class, 'verifyEmail']);
 
 /* Dashboard – passerelle + page covoiturage publique */
 $router->get('/dashboard',                 [DashboardGatewayController::class, 'route']);
