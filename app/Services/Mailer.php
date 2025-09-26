@@ -126,11 +126,14 @@ final class Mailer
             'driver'    => $driver,
             'link'      => $link,
         ]);
+        // ✅ on force un AltBody explicite avec le lien cliquable en texte
+        $alt = "Déposer mon avis : {$link}";
         return $this->send(
             (string)$passenger['email'],
             (string)($passenger['pseudo'] ?? 'Passager'),
             $subject,
-            $html
+            $html,
+            $alt
         );
     }
 

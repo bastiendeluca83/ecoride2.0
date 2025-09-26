@@ -109,6 +109,29 @@ final class Review
         return $out;
     }
 
+    /* ⬇️ NOUVEAU : Avis PENDING avec note ≤ $maxNote (pour incidents) */
+    public function findPendingLowScore(int $maxNote = 3, int $limit = 20): array
+    {
+        if (!$this->c()) return [];
+        $cursor = $this->c()->find(
+            ['status' => 'PENDING', 'note' => ['$lte' => $maxNote]],
+            ['sort' => ['created_at' => -1], 'limit' => $limit]
+        );
+        $out = [];
+        foreach ($cursor as $doc) {
+            $out[] = [
+                'id'           => isset($doc['_id']) ? (string)$doc['_id'] : '',
+                'ride_id'      => (int)($doc['ride_id'] ?? 0),
+                'driver_id'    => (int)($doc['driver_id'] ?? 0),
+                'passenger_id' => (int)($doc['passenger_id'] ?? 0),
+                'note'         => (int)($doc['note'] ?? 0),
+                'comment'      => (string)($doc['comment'] ?? ''),
+                'created_at'   => (string)($doc['created_at'] ?? ''),
+            ];
+        }
+        return $out;
+    }
+
     public function approve(string $id, int $moderatorId): bool
     {
         if (!$this->c() || !$this->isValidObjectId($id)) return false;

@@ -6,6 +6,8 @@ namespace App\Controllers;
 use App\Security\Security;
 use App\Models\Booking;
 use App\Models\Review;
+use App\Models\Ride;   // ⬅️ ajout
+use App\Models\User;   // ⬅️ ajout
 
 final class EmployeeController extends BaseController
 {
@@ -13,8 +15,43 @@ final class EmployeeController extends BaseController
     {
         Security::ensure(['EMPLOYEE','ADMIN']);
 
-        // Dernières annulations (incidents)
-        $incidents = Booking::cancelledLast(20);
+        // Incidents "annulations" (MySQL)
+        $cancelIncidents = Booking::cancelledLast(20);
+
+        // Avis PENDING avec note ≤ 3 (Mongo) -> considérés comme incidents
+        $rm = new Review();
+        $lowReviews = $rm->findPendingLowScore(3, 20);
+
+        // On enrichit chaque avis avec infos ride + passager pour remplir le tableau incidents
+        $reviewIncidents = [];
+        foreach ($lowReviews as $r) {
+            $ride = $r['ride_id'] ? (Ride::findById((int)$r['ride_id']) ?? []) : [];
+            $usr  = $r['passenger_id'] ? (User::findById((int)$r['passenger_id']) ?? []) : [];
+
+            $reviewIncidents[] = [
+                // On garde le champ 'id' attendu par la vue; on préfixe pour ne pas confondre avec un booking id
+                'id'             => 'R-' . ($r['id'] ?? ''),
+                'passenger_email'=> (string)($usr['email'] ?? ('#'.$r['passenger_id'])),
+                'from_city'      => (string)($ride['from_city'] ?? ''),
+                'to_city'        => (string)($ride['to_city'] ?? ''),
+                'date_start'     => (string)($ride['date_start'] ?? ''),
+                // Pour la colonne "Crédits / Note", on met "Note X★"
+                'credits_spent'  => 'Note ' . (int)($r['note'] ?? 0) . '★',
+                'created_at'     => (string)($r['created_at'] ?? ''),
+                'is_review'      => true,   // indicateur interne, si besoin plus tard
+            ];
+        }
+
+        // Fusion incidents et tri par date décroissante
+        $incidents = array_merge($reviewIncidents, $cancelIncidents);
+        usort($incidents, function(array $a, array $b){
+            $da = strtotime((string)($a['created_at'] ?? '')) ?: 0;
+            $db = strtotime((string)($b['created_at'] ?? '')) ?: 0;
+            return $db <=> $da;
+        });
+
+        // Pour afficher aussi le tableau "Avis en attente" sur la même page
+        $pendingReviews = $rm->findPending(100);
 
         $role       = Security::role();
         $crossLabel = ($role === 'ADMIN') ? 'Espace administrateur' : 'Espace utilisateur';
@@ -28,6 +65,7 @@ final class EmployeeController extends BaseController
         $this->render('dashboard/employee', [
             'title'      => 'Espace Employé',
             'incidents'  => $incidents,
+            'pending'    => $pendingReviews,   // ⬅️ ajouté
             'crossLabel' => $crossLabel,
             'crossHref'  => $crossHref,
             'csrf'       => $csrf,
@@ -40,15 +78,15 @@ final class EmployeeController extends BaseController
     {
         Security::ensure(['EMPLOYEE','ADMIN']);
 
-        $rm = new Review();                      // <- modèle Mongo
-        $items = $rm->findPending(100);          // tableau d'avis en attente
+        $rm    = new Review();              // <- modèle Mongo
+        $items = $rm->findPending(100);     // tableau d'avis en attente
 
         if (session_status() === \PHP_SESSION_NONE) { session_start(); }
         if (empty($_SESSION['csrf'])) { $_SESSION['csrf'] = bin2hex(random_bytes(32)); }
         $csrf = $_SESSION['csrf'];
 
-        // Vue placée dans app/Views/reviews/review_pending.php
-        $this->render('reviews/review_pending', [
+        // ✅ nom de vue corrigé (avec "s")
+        $this->render('reviews/reviews_pending', [
             'title' => 'Avis en attente de validation',
             'items' => $items,
             'csrf'  => $csrf,

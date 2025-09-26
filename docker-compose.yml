@@ -10,16 +10,21 @@ services:
       DB_USER: ecoride_user
       DB_PASS: ecoride_password
 
+      # ----- Mongo (avis) -----
       MONGO_URI: mongodb://root:secret@mongo:27017/?authSource=admin
       MONGO_DB: ecoride
 
+      # ----- App -----
       TIMEZONE: Europe/Paris
       DEBUG: "1"
+      APP_URL: http://localhost:8080         # ⚠️ si tu lis les mails sur un autre appareil, mets par ex. http://192.168.X.X:8080
+      APP_KEY: "b2c0f1c1f9a34f5b962f4b0b6b0e9a1e7d0c8b6a1f23c4d5e6f7a8b9c0d1e2f"  # chaine longue aléatoire
 
+      # ----- SMTP (si ton app/config lit les env) -----
       MAIL_HOST: smtp.gmail.com
       MAIL_PORT: "587"
       MAIL_USERNAME: ecoride.demo@gmail.com
-      MAIL_PASSWORD: fjsi deqa cbng kdgo
+      MAIL_PASSWORD: "fjsi deqa cbng kdgo"
       MAIL_FROM_ADDRESS: ecoride.demo@gmail.com
       MAIL_FROM_NAME: EcoRide
       MAIL_ENCRYPTION: tls

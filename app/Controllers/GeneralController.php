@@ -571,13 +571,24 @@ final class GeneralController extends BaseController
         $passengers = Ride::passengersWithEmailForRide($rideId);
         $mailer = new Mailer();
 
+        // ✅ base absolue pour les liens d'email
+        $base = rtrim(
+            getenv('APP_URL')
+            ?: (
+                isset($_SERVER['HTTP_HOST'])
+                    ? (($_SERVER['REQUEST_SCHEME'] ?? 'http') . '://' . $_SERVER['HTTP_HOST'])
+                    : 'http://localhost:8080'
+              ),
+            '/'
+        );
+
         $sent = 0; $failed = 0;
         foreach ($passengers as $p) {
             $toEmail = (string)($p['email'] ?? '');
             if ($toEmail === '') { continue; }
 
             $token = Security::signReviewToken($rideId, (int)$p['id'], time() + 7 * 86400);
-            $link  = BASE_URL . "reviews/new?token=" . rawurlencode($token);
+            $link  = $base . '/reviews/new?token=' . rawurlencode($token); // ✅ absolu
 
             try {
                 $mailer->sendReviewInvite(
@@ -592,6 +603,9 @@ final class GeneralController extends BaseController
                     ],
                     $link
                 );
+                // Debug facultatif du lien dans les logs
+                error_log('[REVIEW_INVITE_LINK] ' . $link);
+
                 $sent++;
             } catch (\Throwable $e) {
                 $failed++;
