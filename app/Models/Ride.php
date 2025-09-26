@@ -17,7 +17,7 @@ class Ride
         return $st->fetchAll(PDO::FETCH_ASSOC)?:[];
     }
 
-    /** Crée un trajet */
+    /** Crée un trajet (⚠️ insère bien 'status') */
     public static function create(
         int $driverId,int $vehicleId,string $fromCity,string $toCity,
         string $dateStart,string $dateEnd,int $price,int $seats,string $status='PREVU'
@@ -165,10 +165,12 @@ class Ride
         return self::all($sql, [':d'=>$driverId]);
     }
 
-    /** Passagers confirmés (nom + avatar) */
+    /** Participants confirmés (nom + avatar) */
     public static function passengersForRide(int $rideId): array {
-        $sql = "SELECT u.id,u.email,u.avatar_path,
-                       TRIM(CONCAT_WS(' ', NULLIF(u.prenom,''), NULLIF(u.nom,''))) AS display_name
+        $sql = "SELECT 
+                    u.id,
+                    u.avatar_path,
+                    TRIM(CONCAT_WS(' ', NULLIF(u.prenom, ''), NULLIF(u.nom, ''))) AS display_name
                 FROM bookings b
                 JOIN users u ON u.id = b.passenger_id
                 WHERE b.ride_id = :r AND b.status = 'CONFIRMED'
@@ -184,11 +186,28 @@ class Ride
         return array_values(array_filter(array_map(fn($r)=>$r['email']??null, $rows)));
     }
 
+    /** 👉 Utilitaire complet pour 'endRide' : id + email + display_name */
+    public static function passengersWithEmailForRide(int $rideId): array {
+        $sql = "SELECT 
+                    u.id,
+                    u.email,
+                    TRIM(CONCAT_WS(' ', NULLIF(u.prenom,''), NULLIF(u.nom,''))) AS display_name
+                FROM bookings b
+                JOIN users u ON u.id = b.passenger_id
+                WHERE b.ride_id=:r AND b.status='CONFIRMED'
+                ORDER BY b.created_at ASC";
+        return self::all($sql, [':r'=>$rideId]);
+    }
+
     public static function driverInfo(int $rideId): ?array {
-        $sql = "SELECT u.id,u.avatar_path,
-                       TRIM(CONCAT_WS(' ', NULLIF(u.prenom,''), NULLIF(u.nom,''))) AS display_name
-                FROM rides r JOIN users u ON u.id=r.driver_id
-                WHERE r.id=:r LIMIT 1";
+        $sql = "SELECT 
+                    u.id,
+                    u.avatar_path,
+                    TRIM(CONCAT_WS(' ', NULLIF(u.prenom,''), NULLIF(u.nom,''))) AS display_name
+                FROM rides r
+                JOIN users u ON u.id = r.driver_id
+                WHERE r.id = :r
+                LIMIT 1";
         return self::one($sql, [':r'=>$rideId]);
     }
 

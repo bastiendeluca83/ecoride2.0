@@ -3,12 +3,12 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
-use App\Db\Sql; // 👈 Accès PDO pour transactions
+use App\Db\Sql;
 use App\Security\Security;
 use App\Models\User;
 use App\Models\Ride;
-use App\Models\Booking;
-use App\Models\Vehicle;
+use App\Models\Booking;   // ✅ bon namespace
+use App\Models\Vehicle;   // ✅ bon namespace
 use App\Models\UserPreferences;
 use App\Services\Mailer;
 use PDO;
@@ -20,19 +20,41 @@ final class GeneralController extends BaseController
         Security::ensure(['USER']);
         $uid  = (int)($_SESSION['user']['id'] ?? 0);
 
-        /* Je rafraîchis l'utilisateur en session (crédits, etc.) */
+        /* Rafraîchit l'utilisateur en session (crédits, etc.) */
         $fresh = $uid ? User::findById($uid) : null;
         if ($fresh) {
             $_SESSION['user'] = array_merge($_SESSION['user'] ?? [], $fresh);
         }
         $user = $_SESSION['user'] ?? ['nom'=>'Utilisateur','credits'=>0,'total_rides'=>0];
 
-        /* Données tableau de bord */
-        $reservations = $uid ? Booking::forPassengerUpcoming($uid) : [];
-        $rides        = $uid ? Ride::forDriverUpcoming($uid) : []; // <- contient r.* donc status est dispo
-        $vehicles     = $uid ? Vehicle::forUser($uid) : [];
+        $pdo = Sql::pdo();
 
-        /* J’enrichis les réservations avec l’info conducteur (avatar/nom) */
+        /* --- Réservations à venir (fallback si Booking::forPassengerUpcoming n'existe pas) --- */
+        if (class_exists(Booking::class) && method_exists(Booking::class, 'forPassengerUpcoming')) {
+            $reservations = $uid ? Booking::forPassengerUpcoming($uid) : [];
+        } else {
+            $reservations = [];
+            if ($uid) {
+                $st = $pdo->prepare("
+                    SELECT b.id, b.ride_id, b.credits_spent,
+                           r.from_city, r.to_city, r.date_start, r.date_end
+                    FROM bookings b
+                    JOIN rides r ON r.id = b.ride_id
+                    WHERE b.passenger_id = :u
+                      AND UPPER(b.status) = 'CONFIRMED'
+                      AND r.date_start >= NOW()
+                    ORDER BY r.date_start ASC
+                ");
+                $st->execute([':u'=>$uid]);
+                $reservations = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            }
+        }
+
+        /* --- Trajets conducteur à venir (modèle Ride) --- */
+        $rides    = $uid ? Ride::forDriverUpcoming($uid) : [];
+        $vehicles = $uid ? Vehicle::forUser($uid) : [];
+
+        /* Enrichit les réservations avec info conducteur (nom/avatar) */
         if (!empty($reservations)) {
             foreach ($reservations as &$res) {
                 $rideId = (int)($res['ride_id'] ?? $res['id'] ?? 0);
@@ -40,7 +62,8 @@ final class GeneralController extends BaseController
             }
             unset($res);
         }
-        /* J’enrichis les trajets conducteur avec la liste participants pour l’affichage */
+
+        /* Enrichit les trajets conducteur avec participants */
         if (!empty($rides)) {
             foreach ($rides as &$r) {
                 $r['participants'] = Ride::passengersForRide((int)($r['id'] ?? 0));
@@ -48,11 +71,29 @@ final class GeneralController extends BaseController
             unset($r);
         }
 
-        /* Stats simples */
-        $driverDone    = $uid ? Ride::countCompletedByDriver($uid) : 0;
-        $passengerDone = $uid ? Booking::countCompletedByPassenger($uid) : 0;
-        $totalDone     = (int)$driverDone + (int)$passengerDone;
+        /* --- Stats (fallback si Booking::countCompletedByPassenger n'existe pas) --- */
+        $driverDone = $uid ? Ride::countCompletedByDriver($uid) : 0;
 
+        if (class_exists(Booking::class) && method_exists(Booking::class, 'countCompletedByPassenger')) {
+            $passengerDone = $uid ? Booking::countCompletedByPassenger($uid) : 0;
+        } else {
+            $passengerDone = 0;
+            if ($uid) {
+                $st = $pdo->prepare("
+                    SELECT COUNT(*) 
+                    FROM bookings b
+                    JOIN rides r ON r.id = b.ride_id
+                    WHERE b.passenger_id = :u
+                      AND UPPER(b.status) = 'CONFIRMED'
+                      AND r.date_end IS NOT NULL
+                      AND r.date_end < NOW()
+                ");
+                $st->execute([':u'=>$uid]);
+                $passengerDone = (int)$st->fetchColumn();
+            }
+        }
+
+        $totalDone = (int)$driverDone + (int)$passengerDone;
         $co2PerTrip = 2.5;
         $co2Total   = $totalDone * $co2PerTrip;
 
@@ -74,14 +115,14 @@ final class GeneralController extends BaseController
         ]);
     }
 
-    /* GET /profil/edit */
+    /* ====== PROFIL ====== */
+
     public function editForm(): void
     {
         Security::ensure(['USER']);
         $id   = (int)($_SESSION['user']['id'] ?? 0);
         $user = $id ? (User::findById($id) ?? ($_SESSION['user'] ?? null)) : ($_SESSION['user'] ?? null);
 
-        /* Je tente de charger les préférences selon le nom dispo */
         $prefs = [];
         foreach (['get','findByUserId','forUser'] as $m) {
             if (method_exists(UserPreferences::class, $m)) {
@@ -97,19 +138,17 @@ final class GeneralController extends BaseController
         ]);
     }
 
-    /* POST /profil/edit */
     public function update(): void
     {
         Security::ensure(['USER']);
 
-        if (!\App\Security\Security::checkCsrf($_POST['csrf'] ?? null)) {
+        if (!Security::checkCsrf($_POST['csrf'] ?? null)) {
             $_SESSION['flash_error'] = 'Session expirée, veuillez réessayer.';
             header('Location: ' . BASE_URL . 'profil/edit'); exit;
         }
 
         $id = (int)($_SESSION['user']['id'] ?? 0);
 
-        /* Payload profil (je filtre les vides) */
         $payload = [
             'nom'            => $_POST['nom']            ?? null,
             'prenom'         => $_POST['prenom']         ?? null,
@@ -159,7 +198,7 @@ final class GeneralController extends BaseController
             }
         }
 
-        /* Préférences (je prends la première méthode existante) */
+        /* Préférences (prend la première méthode existante) */
         $prefsUpdated = false;
         $prefs = [
             'smoker'  => isset($_POST['pref_smoking']) ? (int)$_POST['pref_smoking'] : null,
@@ -184,7 +223,6 @@ final class GeneralController extends BaseController
         $pwChanged = false;
         $newPw  = trim((string)($_POST['new_password']     ?? ''));
         $confPw = trim((string)($_POST['confirm_password'] ?? ''));
-
         if ($newPw !== '') {
             if (mb_strlen($newPw) < 8) {
                 $_SESSION['flash_error'] = 'Le mot de passe doit contenir au moins 8 caractères.';
@@ -216,19 +254,14 @@ final class GeneralController extends BaseController
         header('Location: ' . BASE_URL . 'profil/edit'); exit;
     }
 
-    /** Alias /profile/edit -> /profil/edit (301) */
+    /** Alias /profile/edit -> /profil/edit */
     public function redirectToProfilEdit(): void
     {
         header('Location: ' . BASE_URL . 'profil/edit', true, 301); exit;
     }
 
-    /* ALIAS compat */
-    public function editProfile(): void { $this->editForm(); }
-    public function updateProfile(): void { $this->update(); }
-    public function profile(): void { $this->editForm(); }
-    public function legacyProfileRedirect(): void { $this->redirectToProfilEdit(); }
+    /* ====== VÉHICULES ====== */
 
-    /* ===== VÉHICULES ===== */
     public function vehicleForm(): void
     {
         Security::ensure(['USER']);
@@ -253,7 +286,7 @@ final class GeneralController extends BaseController
     public function addVehicle(): void
     {
         Security::ensure(['USER']);
-        if (!\App\Security\Security::checkCsrf($_POST['csrf'] ?? null)) {
+        if (!Security::checkCsrf($_POST['csrf'] ?? null)) {
             $_SESSION['flash_error'] = 'Session expirée, veuillez réessayer.';
             header('Location: ' . BASE_URL . 'user/vehicle'); exit;
         }
@@ -282,7 +315,7 @@ final class GeneralController extends BaseController
     public function editVehicle(): void
     {
         Security::ensure(['USER']);
-        if (!\App\Security\Security::checkCsrf($_POST['csrf'] ?? null)) {
+        if (!Security::checkCsrf($_POST['csrf'] ?? null)) {
             $_SESSION['flash_error'] = 'Session expirée, veuillez réessayer.';
             header('Location: ' . BASE_URL . 'user/dashboard'); exit;
         }
@@ -313,7 +346,7 @@ final class GeneralController extends BaseController
     public function deleteVehicle(): void
     {
         Security::ensure(['USER']);
-        if (!\App\Security\Security::checkCsrf($_POST['csrf'] ?? null)) {
+        if (!Security::checkCsrf($_POST['csrf'] ?? null)) {
             $_SESSION['flash_error'] = 'Session expirée, veuillez réessayer.';
             header('Location: ' . BASE_URL . 'user/dashboard'); exit;
         }
@@ -326,8 +359,7 @@ final class GeneralController extends BaseController
         header('Location: ' . BASE_URL . 'user/dashboard'); exit;
     }
 
-    /* ===== TRAJETS ===== */
-
+    /* ===== TRAJETS : créer/démarrer/terminer/annuler ===== */
     public function createRide(): void
     {
         Security::ensure(['USER']);
@@ -340,7 +372,7 @@ final class GeneralController extends BaseController
         }
 
         if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
-            if (!\App\Security\Security::checkCsrf($_POST['csrf'] ?? null)) {
+            if (!Security::checkCsrf($_POST['csrf'] ?? null)) {
                 $_SESSION['flash_error'] = 'Session expirée, veuillez réessayer.';
                 header('Location: ' . BASE_URL . 'user/ride/create'); exit;
             }
@@ -381,55 +413,19 @@ final class GeneralController extends BaseController
             $ok = false;
 
             if (method_exists(Ride::class, 'createForDriver')) {
-                /* Helper si présent dans ton modèle */
                 $ok = (bool)Ride::createForDriver($uid, $vehicleId, $payload);
             } else {
-                /* Fallback sur signature create() */
                 try {
                     $newId = Ride::create(
-                        $uid,
-                        $vehicleId,
-                        $payload['from_city'],
-                        $payload['to_city'],
-                        $payload['date_start'],
-                        $payload['date_end'],
-                        (int)$payload['price'],
-                        (int)$payload['seats']
+                        $uid, $vehicleId,
+                        $payload['from_city'], $payload['to_city'],
+                        $payload['date_start'], $payload['date_end'],
+                        (int)$payload['price'], (int)$payload['seats']
                     );
                     $ok = $newId > 0;
                 } catch (\ArgumentCountError|\TypeError $e) {
                     $ok = false;
                 }
-            }
-
-            /* Mail de publication (asynchrone via shutdown) */
-            if ($ok) {
-                $rideForMail = [
-                    'from_city'  => (string)($payload['from_city']  ?? ''),
-                    'to_city'    => (string)($payload['to_city']    ?? ''),
-                    'date_start' => (string)($payload['date_start'] ?? ''),
-                    'date_end'   => (string)($payload['date_end']   ?? ''),
-                    'price'      => (int)($payload['price']         ?? 0),
-                    'seats'      => (int)($payload['seats']         ?? 0),
-                    'seats_left' => (int)($payload['seats']         ?? 0),
-                ];
-
-                register_shutdown_function(function() use ($uid, $rideForMail) {
-                    try {
-                        $driverUser = \App\Models\User::findById($uid) ?: [];
-                        $email = (string)($driverUser['email'] ?? '');
-                        if ($email !== '') {
-                            $driver = [
-                                'email'  => $email,
-                                'pseudo' => (string)($driverUser['prenom'] ?? $driverUser['nom'] ?? 'Chauffeur'),
-                                'nom'    => (string)($driverUser['nom'] ?? ''),
-                            ];
-                            (new Mailer())->sendRidePublished($driver, $rideForMail);
-                        }
-                    } catch (\Throwable $e) {
-                        error_log('[MAIL createRide shutdown] ' . $e->getMessage());
-                    }
-                });
             }
 
             if ($ok) {
@@ -447,14 +443,6 @@ final class GeneralController extends BaseController
         ]);
     }
 
-    public function history(): void { Security::ensure(['USER']); $this->render('dashboard/history',['title'=>'Historique']); }
-
-    /**
-     * DÉMARRER le trajet
-     * - Vérifie conducteur
-     * - Passe status => STARTED (idempotent)
-     * - Renseigne date_start si vide
-     */
     public function startRide(): void
     {
         Security::ensure(['USER']);
@@ -462,7 +450,7 @@ final class GeneralController extends BaseController
         $rideId = (int)($_GET['id'] ?? $_POST['id'] ?? 0);
         if ($rideId <= 0) { $_SESSION['flash_error']='Trajet invalide.'; header('Location: ' . BASE_URL . 'user/dashboard'); exit; }
 
-        $ride = \App\Models\Ride::findById($rideId);
+        $ride = Ride::findById($rideId);
         $uid  = (int)($_SESSION['user']['id'] ?? 0);
 
         if (!$ride || (int)$ride['driver_id'] !== $uid) {
@@ -476,7 +464,6 @@ final class GeneralController extends BaseController
         try {
             $pdo->beginTransaction();
 
-            // Lock anti double-clic
             $st = $pdo->prepare("SELECT status, date_start FROM rides WHERE id = :id FOR UPDATE");
             $st->execute([':id'=>$rideId]);
             $row = $st->fetch(PDO::FETCH_ASSOC) ?: [];
@@ -488,7 +475,6 @@ final class GeneralController extends BaseController
                 header('Location: ' . BASE_URL . 'user/dashboard'); exit;
             }
 
-            // Passe en STARTED + renseigne date_start si manquante
             $pdo->prepare("
                 UPDATE rides 
                    SET status='STARTED', 
@@ -507,11 +493,6 @@ final class GeneralController extends BaseController
         header('Location: ' . BASE_URL . 'user/dashboard'); exit;
     }
 
-    /**
-     * ARRIVÉE
-     * - Passe status => FINISHED (idempotent)
-     * - Envoie les mails d’avis (à chaque appel)
-     */
     public function endRide(): void
     {
         Security::ensure(['USER']);
@@ -519,8 +500,7 @@ final class GeneralController extends BaseController
         $rideId = (int)($_GET['id'] ?? $_POST['id'] ?? 0);
         if ($rideId <= 0) { $_SESSION['flash_error']='Trajet invalide.'; header('Location: ' . BASE_URL . 'user/dashboard'); exit; }
 
-        /* Vérifie la propriété du trajet */
-        $ride = \App\Models\Ride::findById($rideId);
+        $ride = Ride::findById($rideId);
         $uid  = (int)($_SESSION['user']['id'] ?? 0);
         if (!$ride || (int)$ride['driver_id'] !== $uid) {
             $_SESSION['flash_error'] = "Trajet introuvable ou non autorisé.";
@@ -533,7 +513,6 @@ final class GeneralController extends BaseController
         try {
             $pdo->beginTransaction();
 
-            // Idempotence (on autorise l'appel même si déjà FINISHED pour renvoyer les mails)
             $st = $pdo->prepare("SELECT status FROM rides WHERE id = :id FOR UPDATE");
             $st->execute([':id'=>$rideId]);
             $row = $st->fetch(PDO::FETCH_ASSOC) ?: [];
@@ -545,7 +524,6 @@ final class GeneralController extends BaseController
                 header('Location: ' . BASE_URL . 'user/dashboard'); exit;
             }
 
-            // Termine (je renseigne date_end si elle est vide)
             $pdo->prepare("UPDATE rides SET status='FINISHED', date_end = COALESCE(date_end, NOW()) WHERE id=:id")
                 ->execute([':id'=>$rideId]);
 
@@ -556,37 +534,44 @@ final class GeneralController extends BaseController
             header('Location: ' . BASE_URL . 'user/dashboard'); exit;
         }
 
-        /* J’envoie les invitations d’avis (à chaque appui sur Terminer) */
-        $passengers = \App\Models\Booking::passengersWithEmailForRide($rideId);
+        /* Invitations d’avis (robuste) */
+        $passengers = Ride::passengersWithEmailForRide($rideId);
         $mailer = new Mailer();
+
+        $sent = 0; $failed = 0;
         foreach ($passengers as $p) {
-            $token = \App\Security\Security::signReviewToken($rideId, (int)$p['id'], time() + 7 * 86400); // 7 jours
+            $toEmail = (string)($p['email'] ?? '');
+            if ($toEmail === '') { continue; }
+
+            $token = Security::signReviewToken($rideId, (int)$p['id'], time() + 7 * 86400);
             $link  = BASE_URL . "reviews/new?token=" . rawurlencode($token);
-            $mailer->sendReviewInvite(
-                [
-                    'email'  => (string)$p['email'],
-                    'pseudo' => (string)($p['display_name'] ?? $p['email']),
-                ],
-                $ride,
-                [
-                    'email'  => (string)($ride['driver_email'] ?? ''),
-                    'pseudo' => (string)($_SESSION['user']['prenom'] ?? $_SESSION['user']['nom'] ?? 'Chauffeur'),
-                ],
-                $link
-            );
+
+            try {
+                $mailer->sendReviewInvite(
+                    [
+                        'email'  => $toEmail,
+                        'pseudo' => (string)($p['display_name'] ?? $toEmail),
+                    ],
+                    $ride,
+                    [
+                        'email'        => (string)($ride['driver_email'] ?? ''),
+                        'display_name' => trim((string)($_SESSION['user']['prenom'] ?? '').' '.(string)($_SESSION['user']['nom'] ?? 'Chauffeur')),
+                    ],
+                    $link
+                );
+                $sent++;
+            } catch (\Throwable $e) {
+                $failed++;
+                error_log('[EcoRide][mail avis] ride='.$rideId.' to='.$toEmail.' error='.$e->getMessage());
+            }
         }
 
-        $_SESSION['flash_success'] = "Trajet marqué terminé. Invitations à laisser un avis envoyées.";
+        $_SESSION['flash_'.($failed? 'warning':'success')] =
+            "Trajet marqué terminé. {$sent} e-mail(s) envoyé(s)".($failed? ", {$failed} échec(s).":'.');
+
         header('Location: ' . BASE_URL . 'user/dashboard'); exit;
     }
 
-    /**
-     * ANNULER
-     * - Vérifie conducteur
-     * - Rembourse tous les passagers confirmés (crédits)
-     * - Passe status => CANCELLED
-     * - Envoie un mail d’information
-     */
     public function cancelRide(): void
     {
         Security::ensure(['USER']);
@@ -594,7 +579,7 @@ final class GeneralController extends BaseController
         $rideId = (int)($_GET['id'] ?? $_POST['id'] ?? 0);
         if ($rideId <= 0) { $_SESSION['flash_error']='Trajet invalide.'; header('Location: ' . BASE_URL . 'user/dashboard'); exit; }
 
-        $ride = \App\Models\Ride::findById($rideId);
+        $ride = Ride::findById($rideId);
         $uid  = (int)($_SESSION['user']['id'] ?? 0);
         if (!$ride || (int)$ride['driver_id'] !== $uid) {
             $_SESSION['flash_error'] = "Trajet introuvable ou non autorisé.";
@@ -607,11 +592,10 @@ final class GeneralController extends BaseController
         try {
             $pdo->beginTransaction();
 
-            // Lock pour éviter annulations concurrentes
-            $st = $pdo->prepare("SELECT id FROM bookings WHERE ride_id=:r AND UPPER(status)='CONFIRMED' FOR UPDATE");
-            $st->execute([':r'=>$rideId]);
+            // Verrouille les réservations confirmées
+            $pdo->prepare("SELECT id FROM bookings WHERE ride_id=:r AND UPPER(status)='CONFIRMED' FOR UPDATE")
+                ->execute([':r'=>$rideId]);
 
-            // Récup réservations confirmées
             $bs = $pdo->prepare("
                 SELECT b.id, b.passenger_id, b.credits_spent, u.email, u.prenom, u.nom
                 FROM bookings b
@@ -621,7 +605,6 @@ final class GeneralController extends BaseController
             $bs->execute([':r'=>$rideId]);
             $bookings = $bs->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-            // Rembourse + annule
             foreach ($bookings as $b) {
                 $credits = (int)($b['credits_spent'] ?? 0);
                 if ($credits > 0) {
@@ -632,12 +615,11 @@ final class GeneralController extends BaseController
                     ->execute([':id'=>(int)$b['id']]);
             }
 
-            // Annule le trajet
             $pdo->prepare("UPDATE rides SET status='CANCELLED' WHERE id=:id")->execute([':id'=>$rideId]);
 
             $pdo->commit();
 
-            // Mails d’info
+            // Mails d’info (non bloquants)
             $mailer = new Mailer();
             foreach ($bookings as $b) {
                 $to = (string)($b['email'] ?? '');
@@ -648,7 +630,9 @@ final class GeneralController extends BaseController
                          <p>Le trajet <strong>".htmlspecialchars((string)$ride['from_city'])." → ".htmlspecialchars((string)$ride['to_city'])."</strong> a été annulé par le conducteur.</p>
                          <p>Vos crédits ont été <strong>remboursés</strong> sur votre compte.</p>
                          <p>Merci de votre compréhension.<br>EcoRide</p>";
-                $mailer->send($to, $name, $subject, $html);
+                try { $mailer->send($to, $name, $subject, $html); } catch (\Throwable $e) {
+                    error_log('[EcoRide][mail annulation] ride='.$rideId.' to='.$to.' error='.$e->getMessage());
+                }
             }
 
             $_SESSION['flash_success'] = "Trajet annulé. Tous les passagers ont été remboursés et informés.";
