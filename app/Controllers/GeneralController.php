@@ -428,6 +428,39 @@ final class GeneralController extends BaseController
                 }
             }
 
+            /* === ENVOI SYNCHRONE DE L'E-MAIL AU CONDUCTEUR (trajet publié) === */
+            if ($ok) {
+                try {
+                    $driverUser = User::findById($uid) ?: [];
+                    $email = (string)($driverUser['email'] ?? '');
+                    if ($email !== '') {
+                        $driver = [
+                            'email'  => $email,
+                            'pseudo' => (string)($driverUser['prenom'] ?? $driverUser['nom'] ?? 'Chauffeur'),
+                            'nom'    => (string)($driverUser['nom'] ?? ''),
+                        ];
+                        $rideForMail = [
+                            'from_city'  => (string)($payload['from_city']  ?? ''),
+                            'to_city'    => (string)($payload['to_city']    ?? ''),
+                            'date_start' => (string)($payload['date_start'] ?? ''),
+                            'date_end'   => (string)($payload['date_end']   ?? ''),
+                            'price'      => (int)($payload['price']         ?? 0),
+                            'seats'      => (int)($payload['seats']         ?? 0),
+                            'seats_left' => (int)($payload['seats']         ?? 0),
+                        ];
+                        $sent = (new Mailer())->sendRidePublished($driver, $rideForMail);
+                        if (!$sent) {
+                            error_log('[MAIL createRide] sendRidePublished=false (vérifier config SMTP / logs PHPMailer)');
+                            $_SESSION['flash_warning'] = "Trajet publié (⚠️ e-mail de confirmation non envoyé).";
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    error_log('[MAIL createRide] '.$e->getMessage());
+                    $_SESSION['flash_warning'] = "Trajet publié (⚠️ e-mail non envoyé).";
+                }
+            }
+            /* === FIN ENVOI E-MAIL === */
+
             if ($ok) {
                 $_SESSION['flash_success'] = 'Trajet publié.';
                 header('Location: ' . BASE_URL . 'user/dashboard'); exit;
