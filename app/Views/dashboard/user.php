@@ -1,4 +1,4 @@
-<?php
+<?php 
 /** @var array $user */
 /** @var array $reservations */
 /** @var array $rides */
@@ -40,6 +40,20 @@ if (!function_exists('initials_from_name')) {
 }
 
 $stats = $stats ?? ['completed_total'=>0,'co2_total'=>0,'co2_per_trip'=>2.5];
+
+/* helper badge statut trajet conducteur */
+if (!function_exists('ride_status_badge')) {
+  function ride_status_badge(?string $status): string {
+    $s = strtoupper(trim((string)$status));
+    switch ($s) {
+      case 'STARTED':   return '<span class="badge bg-info text-white">En cours</span>';
+      case 'FINISHED':  return '<span class="badge bg-success text-white">Terminé</span>';
+      case 'CANCELLED': return '<span class="badge bg-secondary text-white">Annulé</span>';
+      case 'PREVU':
+      default:          return '<span class="badge bg-warning text-dark">Prévu</span>';
+    }
+  }
+}
 ?>
 
 <div class="container-fluid px-4 py-5" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); min-height: 100vh;">
@@ -307,11 +321,26 @@ $stats = $stats ?? ['completed_total'=>0,'co2_total'=>0,'co2_per_trip'=>2.5];
         <?php if (!empty($rides)): ?>
           <div class="row g-2">
             <?php foreach ($rides as $ride): ?>
+              <?php
+                $participants = $ride['participants'] ?? [];
+                $maxShown = 4;
+                $shown = 0;
+                $more = max(0, count($participants) - $maxShown);
+
+                /* Statut et badges */
+                $status = strtoupper((string)($ride['status'] ?? 'PREVU'));
+              ?>
               <div class="col-lg-6">
                 <div class="card h-100 border shadow-sm rounded-3 bg-white">
                   <div class="card-body p-3">
                     <div class="d-flex justify-content-between align-items-start mb-2">
-                      <small class="fw-bold text-danger mb-0"><i class="fas fa-steering-wheel me-1"></i>Mon trajet</small>
+                      <div class="d-flex align-items-center gap-2">
+                        <small class="fw-bold text-danger mb-0">
+                          <i class="fas fa-steering-wheel me-1"></i>Mon trajet
+                        </small>
+                        <!-- Badge de statut -->
+                        <?= ride_status_badge($status); ?>
+                      </div>
                       <div class="d-flex align-items-center gap-1">
                         <span class="badge bg-primary text-white px-2 py-1 rounded-pill small">
                           <?= (int)($ride['seats_left'] ?? 0) ?> place<?= ((int)($ride['seats_left'] ?? 0) > 1 ? 's' : '') ?>
@@ -352,12 +381,6 @@ $stats = $stats ?? ['completed_total'=>0,'co2_total'=>0,'co2_per_trip'=>2.5];
                     </div>
                     <?php endif; ?>
 
-                    <?php
-                      $participants = $ride['participants'] ?? [];
-                      $maxShown = 4;
-                      $shown = 0;
-                      $more = max(0, count($participants) - $maxShown);
-                    ?>
                     <div class="mb-2">
                       <small class="text-muted d-block">Participants</small>
                       <?php if (!empty($participants)): ?>
@@ -391,18 +414,55 @@ $stats = $stats ?? ['completed_total'=>0,'co2_total'=>0,'co2_per_trip'=>2.5];
                       <?php endif; ?>
                     </div>
 
+                    <!-- Actions selon statut -->
                     <div class="d-grid gap-1">
-                      <div class="btn-group" role="group">
-                        <a class="btn btn-outline-success btn-sm" href="<?= BASE_URL ?>user/ride/start?id=<?= (int)($ride['id'] ?? 0) ?>">
-                          <i class="fas fa-play me-1"></i>Démarrer
-                        </a>
-                        <a class="btn btn-outline-info btn-sm" href="<?= BASE_URL ?>user/ride/end?id=<?= (int)($ride['id'] ?? 0) ?>">
-                          <i class="fas fa-stop me-1"></i>Arrivée
-                        </a>
-                      </div>
-                      <a class="btn btn-outline-danger btn-sm" href="<?= BASE_URL ?>user/ride/cancel?id=<?= (int)($ride['id'] ?? 0) ?>">
-                        <i class="fas fa-times me-1"></i>Annuler le trajet
-                      </a>
+                      <?php if ($status === 'PREVU'): ?>
+                        <div class="btn-group" role="group">
+                          <form method="post" action="<?= BASE_URL ?>user/ride/start" class="m-0 me-1">
+                            <?= \App\Security\Security::csrfField(); ?>
+                            <input type="hidden" name="id" value="<?= (int)($ride['id'] ?? 0) ?>">
+                            <button class="btn btn-outline-success btn-sm">
+                              <i class="fas fa-play me-1"></i>Démarrer
+                            </button>
+                          </form>
+                          <form method="post" action="<?= BASE_URL ?>user/ride/cancel" class="m-0">
+                            <?= \App\Security\Security::csrfField(); ?>
+                            <input type="hidden" name="id" value="<?= (int)($ride['id'] ?? 0) ?>">
+                            <button class="btn btn-outline-danger btn-sm">
+                              <i class="fas fa-times me-1"></i>Annuler
+                            </button>
+                          </form>
+                        </div>
+                      <?php elseif ($status === 'STARTED'): ?>
+                        <div class="btn-group" role="group">
+                          <form method="post" action="<?= BASE_URL ?>user/ride/end" class="m-0 me-1">
+                            <?= \App\Security\Security::csrfField(); ?>
+                            <input type="hidden" name="id" value="<?= (int)($ride['id'] ?? 0) ?>">
+                            <button class="btn btn-outline-info btn-sm">
+                              <i class="fas fa-stop me-1"></i>Terminer
+                            </button>
+                          </form>
+                          <form method="post" action="<?= BASE_URL ?>user/ride/cancel" class="m-0">
+                            <?= \App\Security\Security::csrfField(); ?>
+                            <input type="hidden" name="id" value="<?= (int)($ride['id'] ?? 0) ?>">
+                            <button class="btn btn-outline-danger btn-sm">
+                              <i class="fas fa-times me-1"></i>Annuler
+                            </button>
+                          </form>
+                        </div>
+                      <?php elseif ($status === 'FINISHED'): ?>
+                        <div class="d-grid">
+                          <form method="post" action="<?= BASE_URL ?>user/ride/end" class="m-0">
+                            <?= \App\Security\Security::csrfField(); ?>
+                            <input type="hidden" name="id" value="<?= (int)($ride['id'] ?? 0) ?>">
+                            <button class="btn btn-outline-info btn-sm">
+                              <i class="fas fa-paper-plane me-1"></i>Terminer (renvoyer invitations)
+                            </button>
+                          </form>
+                        </div>
+                      <?php else: ?>
+                        <div class="text-muted small">Aucune action disponible.</div>
+                      <?php endif; ?>
                     </div>
                   </div>
                 </div>
