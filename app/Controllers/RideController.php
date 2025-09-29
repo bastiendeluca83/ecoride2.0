@@ -5,6 +5,7 @@ namespace App\Controllers;
 
 use App\Db\Sql;
 use App\Services\Mailer;
+use App\Models\Review; // ✅ ajoute l'import
 use PDO;
 
 class RideController extends BaseController
@@ -48,7 +49,7 @@ class RideController extends BaseController
         $sql = "
         SELECT
           r.id, r.from_city, r.to_city, r.date_start, r.date_end,
-          r.price, r.seats_left,
+          r.price, r.seats_left, r.driver_id,
           COALESCE(r.is_electric_cached, CASE WHEN UPPER(v.energy)='ELECTRIC' THEN 1 ELSE 0 END) AS is_eco,
 
           TRIM(CONCAT(COALESCE(u.prenom,''),' ',COALESCE(u.nom,''))) AS driver_display_name,
@@ -67,6 +68,30 @@ class RideController extends BaseController
         $st = $pdo->prepare($sql);
         $st->execute($params);
         $rides = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        /* ==== Injection des notes depuis Mongo (APPROVED only) ==== */
+        try {
+            $rm = new Review();
+            $driverIds = array_values(array_unique(array_map(fn($r)=>(int)$r['driver_id'], $rides)));
+            $ratingsMap = $rm->avgForDrivers($driverIds); // [driver_id => ['avg'=>x.x,'count'=>n]]
+
+            foreach ($rides as &$r) {
+                $did = (int)$r['driver_id'];
+                $r['rating_avg']   = isset($ratingsMap[$did]) ? (float)$ratingsMap[$did]['avg']   : null;
+                $r['rating_count'] = isset($ratingsMap[$did]) ? (int)$ratingsMap[$did]['count']   : 0;
+            }
+            unset($r);
+
+            // Filtre min_note côté PHP, sur la moyenne issue de Mongo
+            if ($minNote !== null) {
+                $rides = array_values(array_filter($rides, function($r) use ($minNote) {
+                    if (!isset($r['rating_avg'])) return false; // exclure ceux sans note
+                    return (float)$r['rating_avg'] >= (float)$minNote;
+                }));
+            }
+        } catch (\Throwable $e) {
+            // pas bloquant
+        }
 
         $suggestion = null;
         if (!$rides && $from !== '' && $to !== '') {
@@ -140,7 +165,7 @@ class RideController extends BaseController
         $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
         if ($id <= 0) {
             http_response_code(404);
-            $this->render('rides/show', ['ride' => null, 'reviews' => [], 'avgNote' => null]);
+            $this->render('rides/show', ['ride' => null, 'reviews' => [], 'avgNote' => null, 'reviewsRecent'=>[]]);
             return;
         }
 
@@ -168,66 +193,26 @@ class RideController extends BaseController
 
         if (!$ride) {
             http_response_code(404);
-            $this->render('rides/show', ['ride' => null, 'reviews' => [], 'avgNote' => null]);
+            $this->render('rides/show', ['ride' => null, 'reviews' => [], 'avgNote' => null, 'reviewsRecent'=>[]]);
             return;
         }
 
         $reviews = [];
         $avgNote = null;
+        $reviewsRecent = [];
         try {
-            $rm = new \App\Models\ReviewModel();
-            $reviews = $rm->findByDriverApproved((int)$ride['driver_id'], 10);
-            $avgNote = $rm->avgForDriver((int)$ride['driver_id']);
+            $rm = new Review(); // ✅ fix: plus ReviewModel
+            $driverId = (int)$ride['driver_id'];
+            $reviews = $rm->findByDriverApproved($driverId, 10);
+            $avgNote = $rm->avgForDriver($driverId);
+            $reviewsRecent = $rm->recentApprovedForDriver($driverId, 3);
         } catch (\Throwable $e) {
         }
 
-        $this->render('rides/show', compact('ride','reviews','avgNote'));
+        $this->render('rides/show', compact('ride','reviews','avgNote','reviewsRecent'));
     }
 
-    private function pickTxLabels(PDO $pdo): array
-    {
-        $col = $pdo->query("SHOW COLUMNS FROM transactions LIKE 'type'")->fetch(PDO::FETCH_ASSOC) ?: [];
-        $type = (string)($col['Type'] ?? '');
-
-        $candBooking = ['BOOKING_DEBIT','BOOKING','RESERVATION','DEBIT','BOOK','PAYMENT'];
-        $candEarn    = ['EARN_DRIVER','EARN','GAIN','CREDIT','DRIVER_EARN'];
-        $candFee     = ['PLATFORM_FEE','FEE','COMMISSION','PLATFORM','PLFEE'];
-
-        if (stripos($type, 'enum(') === 0) {
-            if (preg_match('/enum\((.*)\)/i', $type, $m)) {
-                $vals = array_map(fn($s)=>trim($s, " '\""), explode(',', $m[1]));
-                $pick = function(array $cands) use ($vals) {
-                    foreach ($cands as $c) {
-                        if (in_array($c, $vals, true)) return $c;
-                        if (in_array(strtoupper($c), $vals, true)) return strtoupper($c);
-                    }
-                    return $vals[0] ?? 'TX';
-                };
-                return [
-                    'booking' => $pick($candBooking),
-                    'earn'    => $pick($candEarn),
-                    'fee'     => $pick($candFee),
-                ];
-            }
-        }
-
-        if (preg_match('/varchar\((\d+)\)/i', $type, $m)) {
-            $n = (int)$m[1];
-            $fit = function(array $cands) use ($n) {
-                foreach ($cands as $c) {
-                    if (mb_strlen($c) <= $n) return $c;
-                }
-                return mb_substr('TX', 0, max(1,$n));
-            };
-            return [
-                'booking' => $fit($candBooking),
-                'earn'    => $fit($candEarn),
-                'fee'     => $fit($candFee),
-            ];
-        }
-
-        return ['booking'=>'BOOK','earn'=>'EARN','fee'=>'FEE'];
-    }
+    /* ... book() inchangé ... */
 
     public function book(): void
     {
@@ -363,5 +348,50 @@ class RideController extends BaseController
             $_SESSION['flash'][] = ['type'=>'danger','text'=>'Réservation impossible : '.$e->getMessage()];
             header('Location: /rides/show?id='.$rideId);
         }
+    }
+
+    private function pickTxLabels(PDO $pdo): array
+    {
+        $col = $pdo->query("SHOW COLUMNS FROM transactions LIKE 'type'")->fetch(PDO::FETCH_ASSOC) ?: [];
+        $type = (string)($col['Type'] ?? '');
+
+        $candBooking = ['BOOKING_DEBIT','BOOKING','RESERVATION','DEBIT','BOOK','PAYMENT'];
+        $candEarn    = ['EARN_DRIVER','EARN','GAIN','CREDIT','DRIVER_EARN'];
+        $candFee     = ['PLATFORM_FEE','FEE','COMMISSION','PLATFORM','PLFEE'];
+
+        if (stripos($type, 'enum(') === 0) {
+            if (preg_match('/enum\((.*)\)/i', $type, $m)) {
+                $vals = array_map(fn($s)=>trim($s, " '\""), explode(',', $m[1]));
+                $pick = function(array $cands) use ($vals) {
+                    foreach ($cands as $c) {
+                        if (in_array($c, $vals, true)) return $c;
+                        if (in_array(strtoupper($c), $vals, true)) return strtoupper($c);
+                    }
+                    return $vals[0] ?? 'TX';
+                };
+                return [
+                    'booking' => $pick($candBooking),
+                    'earn'    => $pick($candEarn),
+                    'fee'     => $pick($candFee),
+                ];
+            }
+        }
+
+        if (preg_match('/varchar\((\d+)\)/i', $type, $m)) {
+            $n = (int)$m[1];
+            $fit = function(array $cands) use ($n) {
+                foreach ($cands as $c) {
+                    if (mb_strlen($c) <= $n) return $c;
+                }
+                return mb_substr('TX', 0, max(1,$n));
+            };
+            return [
+                'booking' => $fit($candBooking),
+                'earn'    => $fit($candEarn),
+                'fee'     => $fit($candFee),
+            ];
+        }
+
+        return ['booking'=>'BOOK','earn'=>'EARN','fee'=>'FEE'];
     }
 }

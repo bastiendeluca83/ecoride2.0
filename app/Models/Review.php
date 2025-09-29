@@ -86,6 +86,41 @@ final class Review
         return $avg > 0 ? round($avg, 1) : null;
     }
 
+    /* ======= Nouveaux helpers pour le listing ======= */
+
+    /** Retourne un map driver_id => ['avg'=>float,'count'=>int] pour un ensemble d’IDs. */
+    public function avgForDrivers(array $driverIds): array
+    {
+        if (!$this->c() || empty($driverIds)) return [];
+        $driverIds = array_values(array_unique(array_map('intval', $driverIds)));
+
+        $pipeline = [
+            ['$match' => ['status' => 'APPROVED', 'driver_id' => ['$in' => $driverIds]]],
+            ['$group' => [
+                '_id'   => '$driver_id',
+                'avg'   => ['$avg' => '$note'],
+                'count' => ['$sum' => 1],
+            ]],
+        ];
+
+        $out = [];
+        foreach ($this->c()->aggregate($pipeline) as $row) {
+            $did = (int)($row['_id'] ?? 0);
+            $avg = isset($row['avg']) ? round((float)$row['avg'], 1) : null;
+            $cnt = (int)($row['count'] ?? 0);
+            if ($did > 0 && $avg !== null) {
+                $out[$did] = ['avg' => $avg, 'count' => $cnt];
+            }
+        }
+        return $out;
+    }
+
+    /** Les N derniers avis APPROVED d’un conducteur (pour encart sur la page trajet). */
+    public function recentApprovedForDriver(int $driverId, int $limit = 3): array
+    {
+        return $this->findByDriverApproved($driverId, $limit);
+    }
+
     /* Avis en attente pour l’employé. */
     public function findPending(int $limit = 100): array
     {
@@ -93,29 +128,6 @@ final class Review
         $cursor = $this->c()->find(
             ['status' => 'PENDING'],
             ['sort' => ['created_at' => 1], 'limit' => $limit]
-        );
-        $out = [];
-        foreach ($cursor as $doc) {
-            $out[] = [
-                'id'           => isset($doc['_id']) ? (string)$doc['_id'] : '',
-                'ride_id'      => (int)($doc['ride_id'] ?? 0),
-                'driver_id'    => (int)($doc['driver_id'] ?? 0),
-                'passenger_id' => (int)($doc['passenger_id'] ?? 0),
-                'note'         => (int)($doc['note'] ?? 0),
-                'comment'      => (string)($doc['comment'] ?? ''),
-                'created_at'   => (string)($doc['created_at'] ?? ''),
-            ];
-        }
-        return $out;
-    }
-
-    /* ⬇️ NOUVEAU : Avis PENDING avec note ≤ $maxNote (pour incidents) */
-    public function findPendingLowScore(int $maxNote = 3, int $limit = 20): array
-    {
-        if (!$this->c()) return [];
-        $cursor = $this->c()->find(
-            ['status' => 'PENDING', 'note' => ['$lte' => $maxNote]],
-            ['sort' => ['created_at' => -1], 'limit' => $limit]
         );
         $out = [];
         foreach ($cursor as $doc) {

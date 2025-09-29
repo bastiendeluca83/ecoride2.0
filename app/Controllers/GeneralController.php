@@ -11,6 +11,7 @@ use App\Models\Booking;   // ✅ bon namespace
 use App\Models\Vehicle;   // ✅ bon namespace
 use App\Models\UserPreferences;
 use App\Services\Mailer;
+use App\Models\Review;     // ✅ AJOUT : pour récupérer la note depuis Mongo
 use PDO;
 
 final class GeneralController extends BaseController
@@ -105,6 +106,22 @@ final class GeneralController extends BaseController
             'co2_total'       => $co2Total,
         ];
 
+        /* ✅ AJOUT : Note moyenne du conducteur depuis Mongo (avis APPROVED) */
+        $driver_rating_avg = null;
+        $driver_rating_count = 0;
+        try {
+            if ($uid > 0) {
+                $rm = new Review();
+                $driver_rating_avg = $rm->avgForDriver($uid);      // moyenne arrondie à 0.1
+                $map = $rm->avgForDrivers([$uid]);                 // récupère aussi le count
+                if (isset($map[$uid])) {
+                    $driver_rating_count = (int)$map[$uid]['count'];
+                }
+            }
+        } catch (\Throwable $e) {
+            // silencieux si Mongo non dispo
+        }
+
         $this->render('dashboard/user', [
             'title'        => 'Espace utilisateur',
             'user'         => $user,
@@ -112,6 +129,9 @@ final class GeneralController extends BaseController
             'rides'        => $rides,
             'vehicles'     => $vehicles,
             'stats'        => $stats,
+            /* ✅ AJOUT : passe la note au template */
+            'driver_rating_avg'   => $driver_rating_avg,
+            'driver_rating_count' => $driver_rating_count,
         ]);
     }
 

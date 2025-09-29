@@ -23,6 +23,9 @@ $prefBadge = function(string $type, $raw, string $icon) {
 };
 
 $title = 'Liste des covoiturages • EcoRide';
+
+/* include rating badge */
+$ratingInclude = __DIR__ . '/../partials/_rating_badge.php';
 ?>
 
 <h1 class="h4 mb-4">Résultats de votre recherche</h1>
@@ -67,14 +70,23 @@ $title = 'Liste des covoiturages • EcoRide';
         $eco   = (int)($r['is_eco'] ?? 0) === 1;
         $seats = (int)($r['seats_left'] ?? 0);
         $price = (int)($r['price'] ?? 0);
+        $avg   = $r['rating_avg']   ?? null;
+        $count = $r['rating_count'] ?? 0;
       ?>
       <div class="col-md-6 col-lg-4">
         <div class="card h-100 shadow-sm">
           <div class="card-body">
             <!-- Conducteur -->
-            <div class="d-flex align-items-center mb-3">
-              <img src="<?= h($avatarUrl) ?>" class="rounded-circle border me-2" width="48" height="48" alt="Avatar">
-              <div class="fw-bold"><?= h($driverName) ?></div>
+            <div class="d-flex align-items-center mb-2 justify-content-between">
+              <div class="d-flex align-items-center">
+                <img src="<?= h($avatarUrl) ?>" class="rounded-circle border me-2" width="48" height="48" alt="Avatar">
+                <div class="fw-bold"><?= h($driverName) ?></div>
+              </div>
+              <?php if ($avg !== null && file_exists($ratingInclude)): ?>
+                <div class="ms-2">
+                  <?php include $ratingInclude; ?>
+                </div>
+              <?php endif; ?>
             </div>
 
             <!-- Trajet -->

@@ -32,6 +32,10 @@ $prefLabel = function(string $type, $v): string {
     ];
     return $labels[$type][$v] ?? 'N/A';
 };
+
+/* includes (rating + liste avis) */
+$ratingInclude = __DIR__ . '/../partials/_rating_badge.php';
+$reviewsInclude = __DIR__ . '/../partials/_reviews_list.php';
 ?>
 
 <a href="/rides" class="btn btn-outline-secondary mb-4">← Retour aux covoiturages</a>
@@ -39,6 +43,14 @@ $prefLabel = function(string $type, $v): string {
 <div class="d-flex align-items-center gap-3 mb-3">
   <h1 class="mb-0"><?= h($ride['from_city']) ?> → <?= h($ride['to_city']) ?></h1>
   <?php if ($eco): ?><span class="badge text-bg-success">Éco</span><?php endif; ?>
+  <?php
+    // Affiche la moyenne si disponible
+    if (isset($avgNote) && $avgNote !== null && file_exists($ratingInclude)) {
+        $avg = (float)$avgNote;
+        $count = isset($reviews) ? count($reviews) : null; // fallback si non injecté
+        include $ratingInclude;
+    }
+  ?>
 </div>
 
 <div class="row g-4">
@@ -82,11 +94,22 @@ $prefLabel = function(string $type, $v): string {
       </div>
     </div>
 
+    <?php
+      // Bloc "Derniers avis" compact
+      if (!empty($reviewsRecent ?? []) && file_exists($reviewsInclude)) {
+          $items = $reviewsRecent;
+          echo '<div class="card shadow-sm mt-4"><div class="card-body">';
+          echo '<h5 class="card-title mb-3">Derniers avis validés</h5>';
+          include $reviewsInclude;
+          echo '</div></div>';
+      }
+    ?>
+
     <?php if (!empty($reviews)): ?>
       <div class="card shadow-sm mt-4">
         <div class="card-body">
           <h5 class="card-title mb-3">
-            Avis du conducteur
+            Tous les avis du conducteur
             <?php if (!empty($avgNote)): ?>
               <small class="text-muted">(moyenne : <?= h($avgNote) ?>/5)</small>
             <?php endif; ?>
@@ -110,7 +133,19 @@ $prefLabel = function(string $type, $v): string {
         <h5 class="card-title">Chauffeur</h5>
         <div class="d-flex align-items-center gap-3">
           <img src="<?= h($avatarUrl) ?>" alt="Avatar" width="64" height="64" class="rounded-circle border">
-          <div class="fw-bold"><?= h($driverName) ?></div>
+          <div class="fw-bold">
+            <?= h($driverName) ?>
+            <?php
+              if (isset($avgNote) && $avgNote !== null && file_exists($ratingInclude)) {
+                  $avg = (float)$avgNote;
+                  $count = isset($reviews) ? count($reviews) : null;
+                  $small = true;
+                  echo '<div class="mt-1">';
+                  include $ratingInclude;
+                  echo '</div>';
+              }
+            ?>
+          </div>
         </div>
 
         <hr>

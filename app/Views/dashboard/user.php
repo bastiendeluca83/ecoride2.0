@@ -4,6 +4,8 @@
 /** @var array $rides */
 /** @var array $vehicles */
 /** @var array $stats */
+/** @var float|null $driver_rating_avg */     // ✅ ajouté pour la note
+/** @var int $driver_rating_count */           // ✅ ajouté pour le nombre d'avis
 if (!function_exists('e')) {
   function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 }
@@ -54,6 +56,9 @@ if (!function_exists('ride_status_badge')) {
     }
   }
 }
+
+/* ✅ include du badge de note réutilisable */
+$ratingInclude = __DIR__ . '/../partials/_rating_badge.php';
 ?>
 
 <div class="container-fluid px-4 py-5" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); min-height: 100vh;">
@@ -63,6 +68,20 @@ if (!function_exists('ride_status_badge')) {
       <div>
         <h1 class="h2 mb-1 fw-bold text-dark">Bienvenue, <?= e($user['prenom'] ?? '') ?> <?= e($user['nom'] ?? 'Utilisateur') ?></h1>
         <p class="text-muted mb-0">Gérez vos trajets et votre profil EcoRide</p>
+
+        <!-- ✅ AJOUT : Affichage de la note moyenne du conducteur si disponible -->
+        <?php if (isset($driver_rating_avg) && $driver_rating_avg !== null && file_exists($ratingInclude)): ?>
+          <div class="mt-2">
+            <span class="me-2 text-muted small">Ma note conducteur :</span>
+            <?php
+              $avg = (float)$driver_rating_avg;
+              $count = (int)($driver_rating_count ?? 0);
+              $small = true;
+              include $ratingInclude;
+            ?>
+          </div>
+        <?php endif; ?>
+        <!-- ✅ FIN AJOUT -->
       </div>
       <a class="btn btn-outline-danger px-4 py-2 rounded-pill" href="<?= BASE_URL ?>logout">
         <i class="fas fa-sign-out-alt me-2"></i>Déconnexion
