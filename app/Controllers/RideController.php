@@ -5,20 +5,37 @@ namespace App\Controllers;
 
 use App\Db\Sql;
 use App\Services\Mailer;
-use App\Models\Review; // ✅ ajoute l'import
+use App\Models\Review; // ✅ je charge le modèle qui lit les notes (Mongo)
 use PDO;
 
+/**
+ * RideController
+ * - Liste/filtre des trajets (list)
+ * - Vue catalogue /covoiturage (prochains + 30 derniers jours)
+ * - Détail d’un trajet (show)
+ * - Réservation (book) avec gestion des crédits + transactions + mails
+ *
+ * Je reste strict MVC : ici je prépare les données, la vue s’occupe du rendu.
+ */
 class RideController extends BaseController
 {
+    /** Page d’accueil très simple (SEO + cohérence MVC) */
     public function home(): void
     {
         $this->render('home/index', ['title' => 'EcoRide – Covoiturage écoresponsable']);
     }
 
+    /**
+     * Liste avec filtres (US 3 + US 4)
+     * - Filtres: from_city, to_city, date_start, eco_only, price_max, duration_max, min_note
+     * - Je filtre d’abord côté SQL (places dispo, ville, date, prix, durée, électricité)
+     * - Puis j’injecte les notes (Mongo) et j’applique min_note côté PHP
+     */
     public function list(): void
     {
         $pdo = Sql::pdo();
 
+        // je récupère les filtres depuis GET ou POST (tolérant)
         $from    = trim($_GET['from_city']  ?? $_POST['from_city']  ?? '');
         $to      = trim($_GET['to_city']    ?? $_POST['to_city']    ?? '');
         $date    = trim($_GET['date_start'] ?? $_POST['date_start'] ?? '');
@@ -28,13 +45,15 @@ class RideController extends BaseController
         $durationMax = isset($_GET['duration_max']) ? (int)$_GET['duration_max'] : null;
         $minNote     = isset($_GET['min_note'])     ? (float)$_GET['min_note']   : null;
 
-        $where  = ["r.seats_left > 0"];
+        // je construis ma clause WHERE progressivement
+        $where  = ["r.seats_left > 0"]; // je ne propose que des trajets avec au moins une place
         $params = [];
 
         if ($from !== '') { $where[] = "r.from_city LIKE :from"; $params[':from'] = "%$from%"; }
         if ($to   !== '') { $where[] = "r.to_city   LIKE :to";   $params[':to']   = "%$to%"; }
         if ($date !== '') { $where[] = "DATE(r.date_start) = :d"; $params[':d']   = $date; }
 
+        // filtre éco: j’utilise le cache is_electric_cached quand dispo, sinon je déduis via vehicles.energy
         if ($ecoOnly) {
             $where[] = "(COALESCE(r.is_electric_cached, CASE WHEN UPPER(v.energy)='ELECTRIC' THEN 1 ELSE 0 END)) = 1";
         }
@@ -46,6 +65,7 @@ class RideController extends BaseController
             $params[':dmax'] = $durationMax;
         }
 
+        // je sélectionne toutes les infos utiles pour l’affichage (conducteur, avatar, préférences…)
         $sql = "
         SELECT
           r.id, r.from_city, r.to_city, r.date_start, r.date_end,
@@ -69,11 +89,11 @@ class RideController extends BaseController
         $st->execute($params);
         $rides = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-        /* ==== Injection des notes depuis Mongo (APPROVED only) ==== */
+        /* ==== J’injecte les notes depuis Mongo (APPROVED only) et j’applique min_note côté PHP ==== */
         try {
             $rm = new Review();
             $driverIds = array_values(array_unique(array_map(fn($r)=>(int)$r['driver_id'], $rides)));
-            $ratingsMap = $rm->avgForDrivers($driverIds); // [driver_id => ['avg'=>x.x,'count'=>n]]
+            $ratingsMap = $rm->avgForDrivers($driverIds); // format: [driver_id => ['avg'=>x.x,'count'=>n]]
 
             foreach ($rides as &$r) {
                 $did = (int)$r['driver_id'];
@@ -82,17 +102,18 @@ class RideController extends BaseController
             }
             unset($r);
 
-            // Filtre min_note côté PHP, sur la moyenne issue de Mongo
+            // si min_note est demandé, je filtre ici (post-traitement des données SQL)
             if ($minNote !== null) {
                 $rides = array_values(array_filter($rides, function($r) use ($minNote) {
-                    if (!isset($r['rating_avg'])) return false; // exclure ceux sans note
+                    if (!isset($r['rating_avg'])) return false; // j’exclus ceux sans note
                     return (float)$r['rating_avg'] >= (float)$minNote;
                 }));
             }
         } catch (\Throwable $e) {
-            // pas bloquant
+            // Pas bloquant si Mongo est indisponible ou si le modèle n’expose pas les méthodes attendues
         }
 
+        // si pas de résultats, je propose la date la + proche (US 3)
         $suggestion = null;
         if (!$rides && $from !== '' && $to !== '') {
             $st2 = $pdo->prepare("
@@ -106,6 +127,7 @@ class RideController extends BaseController
             $suggestion = $st2->fetch(PDO::FETCH_ASSOC) ?: null;
         }
 
+        // j’envoie tout à la vue
         $this->render('rides/list', [
             'title'      => 'Covoiturages – Résultats',
             'rides'      => $rides,
@@ -114,10 +136,17 @@ class RideController extends BaseController
         ]);
     }
 
+    /**
+     * /covoiturage
+     * - Prochains trajets (places > 0)
+     * - Trajets terminés sur les 30 derniers jours (peut servir d’historique public)
+     * - Injection des notes (moyenne + count) pour chaque conducteur
+     */
     public function covoiturage(): void
     {
         $pdo = Sql::pdo();
 
+        // Prochains trajets (affichage catalogue)
         $st = $pdo->prepare("
             SELECT
               r.*,
@@ -135,6 +164,7 @@ class RideController extends BaseController
         $st->execute();
         $ridesUpcoming = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+        // Trajets terminés dans les 30 derniers jours (pour visibilité + SEO)
         $st2 = $pdo->prepare("
             SELECT
               r.*,
@@ -151,7 +181,7 @@ class RideController extends BaseController
         $st2->execute();
         $ridesPast30 = $st2->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-        /* ✅ AJOUT : notes étoilées sur /covoiturage */
+        /* ✅ J’ajoute les moyennes de notes (Mongo) pour les deux listes */
         try {
             $rm = new Review();
             $ids = array_unique(array_merge(
@@ -173,7 +203,7 @@ class RideController extends BaseController
             }
             unset($r);
         } catch (\Throwable $e) {
-            // silencieux
+            // silencieux: si Mongo tombe, on garde quand même la page
         }
 
         $this->render('pages/covoiturage', [
@@ -183,10 +213,16 @@ class RideController extends BaseController
         ]);
     }
 
+    /**
+     * Détail d’un trajet (US 5)
+     * - J’affiche toutes les infos du trajet + préférences + véhicule + note moyenne du conducteur
+     * - Je remonte aussi quelques avis récents pour la crédibilité
+     */
     public function show(): void
     {
         $pdo = Sql::pdo();
 
+        // id de trajet requis
         $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
         if ($id <= 0) {
             http_response_code(404);
@@ -194,6 +230,7 @@ class RideController extends BaseController
             return;
         }
 
+        // je récupère tout ce qu’il faut pour la fiche
         $sql = "
             SELECT
               r.id, r.from_city, r.to_city, r.date_start, r.date_end,
@@ -222,16 +259,18 @@ class RideController extends BaseController
             return;
         }
 
+        // bloc avis (je reste tolérant aux méthodes dispo dans Review)
         $reviews = [];
         $avgNote = null;
         $reviewsRecent = [];
         try {
-            $rm = new Review(); // ✅ fix: plus ReviewModel
+            $rm = new Review(); // ✅ (correct: plus de ReviewModel)
             $driverId = (int)$ride['driver_id'];
             $reviews = $rm->findByDriverApproved($driverId, 10);
             $avgNote = $rm->avgForDriver($driverId);
             $reviewsRecent = $rm->recentApprovedForDriver($driverId, 3);
         } catch (\Throwable $e) {
+            // pas bloquant si Mongo tombe
         }
 
         $this->render('rides/show', compact('ride','reviews','avgNote','reviewsRecent'));
@@ -239,13 +278,22 @@ class RideController extends BaseController
 
     /* ... book() inchangé ... */
 
+    /**
+     * Réservation d’un trajet (US 6)
+     * - Transactions atomiques (FOR UPDATE + COMMIT/ROLLBACK)
+     * - Décrément des places, débit passager, crédit conducteur, commission plateforme
+     * - Trois écritures dans la table transactions (passager, conducteur, plateforme)
+     * - E-mails de confirmation
+     */
     public function book(): void
     {
+        // j’accepte uniquement POST avec un ride_id
         if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST' || empty($_POST['ride_id'])) {
             header('Location: /rides');
             return;
         }
 
+        // je vérifie l’authentification (session requise)
         if (session_status() === \PHP_SESSION_NONE) { session_start(); }
         $userId = (int)($_SESSION['user']['id'] ?? 0);
         if ($userId <= 0) { header('Location: /login'); return; }
@@ -253,33 +301,39 @@ class RideController extends BaseController
         $rideId = (int)$_POST['ride_id'];
         $pdo = Sql::pdo();
 
-        $platformFee = 2;
+        $platformFee = 2; // US 9 : commission fixe de 2 crédits
 
         try {
             $pdo->beginTransaction();
 
+            // je verrouille le trajet (places, driver_id, price…)
             $st = $pdo->prepare("SELECT * FROM rides WHERE id = :id FOR UPDATE");
             $st->execute([':id'=>$rideId]);
             $ride = $st->fetch(PDO::FETCH_ASSOC);
             if (!$ride) { throw new \RuntimeException('Trajet introuvable'); }
 
+            // je bloque la réservation de son propre trajet
             if ((int)$ride['driver_id'] === $userId) {
                 throw new \RuntimeException('Vous ne pouvez pas réserver votre propre trajet.');
             }
 
+            // je vérifie les places restantes
             if ((int)$ride['seats_left'] <= 0) {
                 throw new \RuntimeException('Plus de places disponibles.');
             }
 
+            // pas de double réservation confirmée pour ce passager/ce trajet
             $st = $pdo->prepare("SELECT 1 FROM bookings WHERE ride_id=:r AND passenger_id=:u AND status='CONFIRMED' LIMIT 1");
             $st->execute([':r'=>$rideId, ':u'=>$userId]);
             if ($st->fetchColumn()) {
                 throw new \RuntimeException('Vous avez déjà réservé ce trajet.');
             }
 
+            // je calcule la part conducteur
             $price = (int)$ride['price'];
             $driverAmount = max(0, $price - $platformFee);
 
+            // je verrouille le solde du passager (crédits)
             $st = $pdo->prepare("SELECT credits FROM users WHERE id = :id FOR UPDATE");
             $st->execute([':id'=>$userId]);
             $creditsPassenger = (int)($st->fetchColumn() ?: 0);
@@ -287,11 +341,14 @@ class RideController extends BaseController
                 throw new \RuntimeException('Crédits insuffisants.');
             }
 
+            // je récupère un "compte plate-forme" (ADMIN le plus ancien)
             $platformUserId = (int)($pdo->query("SELECT id FROM users WHERE role='ADMIN' ORDER BY id ASC LIMIT 1")->fetchColumn() ?: 0);
-            if ($platformUserId === 0) { $platformUserId = (int)$ride['driver_id']; }
+            if ($platformUserId === 0) { $platformUserId = (int)$ride['driver_id']; } // fallback minimal
 
+            // labels de transactions compatibles avec le schéma (ENUM/VARCHAR)
             $tx = $this->pickTxLabels($pdo);
 
+            // 1) création de la réservation
             $bst = $pdo->prepare("
                 INSERT INTO bookings(ride_id,passenger_id,status,credits_spent,created_at)
                 VALUES(:r,:u,'CONFIRMED',:c,NOW())
@@ -299,6 +356,7 @@ class RideController extends BaseController
             $bst->execute([':r'=>$rideId, ':u'=>$userId, ':c'=>$price]);
             $bookingId = (int)$pdo->lastInsertId();
 
+            // 2) décrément des places (avec garde-fou)
             $ust = $pdo->prepare("
                 UPDATE rides SET seats_left = seats_left - 1
                 WHERE id = :id AND seats_left >= 1
@@ -308,12 +366,15 @@ class RideController extends BaseController
                 throw new \RuntimeException('Plus de places disponibles.');
             }
 
+            // 3) débit passager
             $pdo->prepare("UPDATE users SET credits = credits - :c WHERE id = :id")
                 ->execute([':c'=>$price, ':id'=>$userId]);
 
+            // 4) crédit conducteur
             $pdo->prepare("UPDATE users SET credits = credits + :c WHERE id = :id")
                 ->execute([':c'=>$driverAmount, ':id'=>(int)$ride['driver_id']]);
 
+            // 5) journal des transactions (passager, conducteur, plateforme)
             $insTx = $pdo->prepare("
                 INSERT INTO transactions(user_id, booking_id, ride_id, type, montant, description, created_at)
                 VALUES(:uid,:bid,:rid,:type,:amount,:descr,NOW())
@@ -336,7 +397,7 @@ class RideController extends BaseController
 
             $pdo->commit();
 
-            // envois e-mails : confirmation (passager) + nouvelle réservation (conducteur)
+            // Envois e-mails: confirmation au passager + notification au conducteur
             $m = new Mailer();
 
             $passenger = $pdo->prepare("SELECT id, email, prenom, nom FROM users WHERE id = ? LIMIT 1");
@@ -375,6 +436,12 @@ class RideController extends BaseController
         }
     }
 
+    /**
+     * Choisit des libellés compatibles avec le schéma de la colonne transactions.type
+     * - Support ENUM (je pioche parmi une liste de candidats)
+     * - Support VARCHAR(n) (je choisis un candidat qui rentre)
+     * - Fallback génériques
+     */
     private function pickTxLabels(PDO $pdo): array
     {
         $col = $pdo->query("SHOW COLUMNS FROM transactions LIKE 'type'")->fetch(PDO::FETCH_ASSOC) ?: [];
@@ -384,6 +451,7 @@ class RideController extends BaseController
         $candEarn    = ['EARN_DRIVER','EARN','GAIN','CREDIT','DRIVER_EARN'];
         $candFee     = ['PLATFORM_FEE','FEE','COMMISSION','PLATFORM','PLFEE'];
 
+        // ENUM('...','...') → je choisis la 1ère valeur qui colle
         if (stripos($type, 'enum(') === 0) {
             if (preg_match('/enum\((.*)\)/i', $type, $m)) {
                 $vals = array_map(fn($s)=>trim($s, " '\""), explode(',', $m[1]));
@@ -402,6 +470,7 @@ class RideController extends BaseController
             }
         }
 
+        // VARCHAR(n) → je prends le 1er candidat qui tient dans n
         if (preg_match('/varchar\((\d+)\)/i', $type, $m)) {
             $n = (int)$m[1];
             $fit = function(array $cands) use ($n) {
@@ -417,6 +486,7 @@ class RideController extends BaseController
             ];
         }
 
+        // fallback générique si je n’ai pas réussi à introspecter
         return ['booking'=>'BOOK','earn'=>'EARN','fee'=>'FEE'];
     }
 }

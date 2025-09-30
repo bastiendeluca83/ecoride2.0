@@ -14,26 +14,37 @@ use App\Services\Mailer;
 use App\Models\Review;     // ✅ Pour récupérer la note depuis Mongo
 use PDO;
 
+/**
+ * Controller "général" pour l'espace utilisateur.
+ * - Je charge le dashboard (réservations, trajets, stats, avis)
+ * - Je gère le profil (édition + upload avatar + préférences + mot de passe)
+ * - Je gère les véhicules (CRUD léger)
+ * - Je gère le cycle de vie d’un trajet (créer / démarrer / terminer / annuler)
+ * - Je fournis la page "Ma note" (avis + moyenne depuis Mongo)
+ *
+ * NB: je reste strict MVC -> aucune logique de vue ici, j’envoie seulement des données aux templates.
+ */
 final class GeneralController extends BaseController
 {
     public function index(): void
     {
-        Security::ensure(['USER']);
+        Security::ensure(['USER']); // je force l'accès aux utilisateurs connectés
         $uid  = (int)($_SESSION['user']['id'] ?? 0);
 
-        /* Rafraîchit l'utilisateur en session (crédits, etc.) */
+        /* Je rafraîchis l'utilisateur en session (crédits, total, etc.) pour éviter les données périmées */
         $fresh = $uid ? User::findById($uid) : null;
         if ($fresh) {
             $_SESSION['user'] = array_merge($_SESSION['user'] ?? [], $fresh);
         }
         $user = $_SESSION['user'] ?? ['nom'=>'Utilisateur','credits'=>0,'total_rides'=>0];
 
-        $pdo = Sql::pdo();
+        $pdo = Sql::pdo(); // j'ai besoin de PDO pour quelques fallbacks
 
-        /* --- Réservations à venir (fallback si Booking::forPassengerUpcoming n'existe pas) --- */
+        /* --- Réservations passager à venir (je tente via le modèle, sinon SQL fallback) --- */
         if (class_exists(Booking::class) && method_exists(Booking::class, 'forPassengerUpcoming')) {
             $reservations = $uid ? Booking::forPassengerUpcoming($uid) : [];
         } else {
+            // fallback SQL si la méthode du modèle n’existe pas encore
             $reservations = [];
             if ($uid) {
                 $st = $pdo->prepare("
@@ -51,11 +62,11 @@ final class GeneralController extends BaseController
             }
         }
 
-        /* --- Trajets conducteur à venir (modèle Ride) --- */
+        /* --- Trajets à venir où je suis conducteur + mes véhicules --- */
         $rides    = $uid ? Ride::forDriverUpcoming($uid) : [];
         $vehicles = $uid ? Vehicle::forUser($uid) : [];
 
-        /* Enrichit les réservations avec info conducteur (nom/avatar) */
+        /* J’enrichis les réservations avec les infos conducteur (nom, avatar...) pour l’affichage */
         if (!empty($reservations)) {
             foreach ($reservations as &$res) {
                 $rideId = (int)($res['ride_id'] ?? $res['id'] ?? 0);
@@ -64,7 +75,7 @@ final class GeneralController extends BaseController
             unset($res);
         }
 
-        /* Enrichit les trajets conducteur avec participants */
+        /* J’enrichis mes trajets conducteur avec la liste des participants */
         if (!empty($rides)) {
             foreach ($rides as &$r) {
                 $r['participants'] = Ride::passengersForRide((int)($r['id'] ?? 0));
@@ -72,12 +83,13 @@ final class GeneralController extends BaseController
             unset($r);
         }
 
-        /* --- Stats (fallback si Booking::countCompletedByPassenger n'existe pas) --- */
+        /* --- Stats: combien de trajets terminés (conducteur + passager) --- */
         $driverDone = $uid ? Ride::countCompletedByDriver($uid) : 0;
 
         if (class_exists(Booking::class) && method_exists(Booking::class, 'countCompletedByPassenger')) {
             $passengerDone = $uid ? Booking::countCompletedByPassenger($uid) : 0;
         } else {
+            // fallback SQL si la méthode n’existe pas
             $passengerDone = 0;
             if ($uid) {
                 $st = $pdo->prepare("
@@ -94,8 +106,9 @@ final class GeneralController extends BaseController
             }
         }
 
+        // un petit indicateur CO2 fictif (je reste cohérent avec le thème "écolo")
         $totalDone = (int)$driverDone + (int)$passengerDone;
-        $co2PerTrip = 2.5;
+        $co2PerTrip = 2.5;             // je pose une valeur simple pour illustrer
         $co2Total   = $totalDone * $co2PerTrip;
 
         $stats = [
@@ -106,31 +119,34 @@ final class GeneralController extends BaseController
             'co2_total'       => $co2Total,
         ];
 
-        /* ✅ Note moyenne du conducteur depuis Mongo (avis APPROVED) + derniers avis */
+        /* ✅ Je récupère ma note moyenne et quelques avis récents depuis Mongo (via le modèle Review si dispo) */
         $driver_rating_avg = null;
         $driver_rating_count = 0;
         $driver_reviews_recent = [];
         try {
             if ($uid > 0) {
                 $rm = new Review();
+                // moyenne arrondie à 0.1 si la méthode existe
                 if (method_exists($rm, 'avgForDriver')) {
-                    $driver_rating_avg = $rm->avgForDriver($uid);      // moyenne arrondie à 0.1
+                    $driver_rating_avg = $rm->avgForDriver($uid);
                 }
+                // nombre total d'avis (si la méthode groupée existe)
                 if (method_exists($rm, 'avgForDrivers')) {
-                    $map = $rm->avgForDrivers([$uid]);                 // récupère aussi le count
+                    $map = $rm->avgForDrivers([$uid]);
                     if (isset($map[$uid])) {
                         $driver_rating_count = (int)$map[$uid]['count'];
                     }
                 }
-                // 🔎 pour la modale
+                // pour alimenter une modale ou un bloc "derniers avis"
                 if (method_exists($rm, 'recentApprovedForDriver')) {
                     $driver_reviews_recent = $rm->recentApprovedForDriver($uid, 5);
                 }
             }
         } catch (\Throwable $e) {
-            // silencieux si Mongo non dispo
+            // je reste silencieux ici: si Mongo tombe, je ne casse pas le dashboard
         }
 
+        // J’envoie toutes les données à la vue du dashboard (aucune logique de présentation ici)
         $this->render('dashboard/user', [
             'title'        => 'Espace utilisateur',
             'user'         => $user,
@@ -138,7 +154,6 @@ final class GeneralController extends BaseController
             'rides'        => $rides,
             'vehicles'     => $vehicles,
             'stats'        => $stats,
-            /* ✅ passe la note + derniers avis au template */
             'driver_rating_avg'    => $driver_rating_avg,
             'driver_rating_count'  => $driver_rating_count,
             'driver_reviews_recent'=> $driver_reviews_recent,
@@ -149,10 +164,12 @@ final class GeneralController extends BaseController
 
     public function editForm(): void
     {
-        Security::ensure(['USER']);
+        Security::ensure(['USER']); // je sécurise la route
         $id   = (int)($_SESSION['user']['id'] ?? 0);
+        // je tente un findById sinon je retombe sur la session telle quelle
         $user = $id ? (User::findById($id) ?? ($_SESSION['user'] ?? null)) : ($_SESSION['user'] ?? null);
 
+        // je récupère les préférences via la 1ère méthode dispo du modèle
         $prefs = [];
         foreach (['get','findByUserId','forUser'] as $m) {
             if (method_exists(UserPreferences::class, $m)) {
@@ -170,8 +187,9 @@ final class GeneralController extends BaseController
 
     public function update(): void
     {
-        Security::ensure(['USER']);
+        Security::ensure(['USER']); // protection
 
+        // je vérifie le CSRF pour éviter les soumissions frauduleuses
         if (!Security::checkCsrf($_POST['csrf'] ?? null)) {
             $_SESSION['flash_error'] = 'Session expirée, veuillez réessayer.';
             header('Location: ' . BASE_URL . 'profil/edit'); exit;
@@ -179,6 +197,7 @@ final class GeneralController extends BaseController
 
         $id = (int)($_SESSION['user']['id'] ?? 0);
 
+        // je récupère proprement le payload (j’accepte les clés legacy et nouvelles)
         $payload = [
             'nom'            => $_POST['nom']            ?? null,
             'prenom'         => $_POST['prenom']         ?? null,
@@ -195,7 +214,7 @@ final class GeneralController extends BaseController
         $data = [];
         foreach ($payload as $k=>$v) if ($v !== null && $v !== '') $data[$k] = is_string($v) ? trim($v) : $v;
 
-        /* Upload avatar (optionnel) */
+        /* Upload avatar (optionnel, taille max 2Mo, formats classiques) */
         $avatarUpdated = false;
         if (!empty($_FILES['avatar']) && is_array($_FILES['avatar']) && ($_FILES['avatar']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
             $f = $_FILES['avatar'];
@@ -211,6 +230,7 @@ final class GeneralController extends BaseController
                     $dest = $baseDir . '/' . $filename;
                     if (@move_uploaded_file($f['tmp_name'], $dest)) {
                         $relPath = 'uploads/avatars/' . $filename;
+                        // je préfère updateAvatar si dispo, sinon je passe par updateProfile
                         if (method_exists(User::class, 'updateAvatar')) {
                             $avatarUpdated = (bool)User::updateAvatar($id, $relPath);
                         } else {
@@ -228,7 +248,7 @@ final class GeneralController extends BaseController
             }
         }
 
-        /* Préférences (prend la première méthode existante) */
+        /* Préférences utilisateur (je prends la 1ère méthode dispo du modèle) */
         $prefsUpdated = false;
         $prefs = [
             'smoker'  => isset($_POST['pref_smoking']) ? (int)$_POST['pref_smoking'] : null,
@@ -249,7 +269,7 @@ final class GeneralController extends BaseController
             }
         }
 
-        /* Mot de passe */
+        /* Changement de mot de passe (facultatif, avec un minimum de sécurité) */
         $pwChanged = false;
         $newPw  = trim((string)($_POST['new_password']     ?? ''));
         $confPw = trim((string)($_POST['confirm_password'] ?? ''));
@@ -269,11 +289,14 @@ final class GeneralController extends BaseController
             $pwChanged = true;
         }
 
+        // update profil si j’ai des infos à persister
         $profileUpdated = $id>0 && $data ? User::updateProfile($id, $data) : false;
 
+        // je rafraîchis la session après maj
         $fresh = $id ? User::findById($id) : null;
         if ($fresh) $_SESSION['user'] = array_merge($_SESSION['user'] ?? [], $fresh);
 
+        // je construis un message propre (profil, mot de passe, avatar, préférences)
         $parts = [];
         if ($profileUpdated) $parts[] = 'profil';
         if ($pwChanged)      $parts[] = 'mot de passe';
@@ -284,7 +307,7 @@ final class GeneralController extends BaseController
         header('Location: ' . BASE_URL . 'profil/edit'); exit;
     }
 
-    /** Alias /profile/edit -> /profil/edit */
+    /** Petit alias /profile/edit -> /profil/edit (SEO/UX) */
     public function redirectToProfilEdit(): void
     {
         header('Location: ' . BASE_URL . 'profil/edit', true, 301); exit;
@@ -298,6 +321,7 @@ final class GeneralController extends BaseController
         $uid = (int)($_SESSION['user']['id'] ?? 0);
         $id  = (int)($_GET['id'] ?? 0);
 
+        // si id présent, je vérifie que le véhicule m’appartient
         $vehicle = null;
         if ($id > 0) {
             $vehicle = Vehicle::findOwned($id, $uid);
@@ -316,12 +340,14 @@ final class GeneralController extends BaseController
     public function addVehicle(): void
     {
         Security::ensure(['USER']);
+        // CSRF obligatoire
         if (!Security::checkCsrf($_POST['csrf'] ?? null)) {
             $_SESSION['flash_error'] = 'Session expirée, veuillez réessayer.';
             header('Location: ' . BASE_URL . 'user/vehicle'); exit;
         }
 
         $uid = (int)($_SESSION['user']['id'] ?? 0);
+        // je récupère les champs essentiels
         $data = [
             'brand'          => trim((string)($_POST['brand'] ?? '')),
             'model'          => trim((string)($_POST['model'] ?? '')),
@@ -332,6 +358,7 @@ final class GeneralController extends BaseController
             'seats'          => (int)($_POST['seats'] ?? 0),
         ];
 
+        // validation minimum côté serveur
         if ($data['brand']==='' || $data['model']==='' || $data['plate']==='' || $data['seats']<=0) {
             $_SESSION['flash_error'] = 'Marque, modèle, plaque et places sont obligatoires.';
             header('Location: ' . BASE_URL . 'user/vehicle'); exit;
@@ -353,6 +380,7 @@ final class GeneralController extends BaseController
         $uid = (int)($_SESSION['user']['id'] ?? 0);
         $id  = (int)($_POST['id'] ?? 0);
 
+        // je protège l’accès: je ne modifie que mes véhicules
         if (!$id || !Vehicle::findOwned($id, $uid)) {
             $_SESSION['flash_error'] = "Véhicule introuvable.";
             header('Location: ' . BASE_URL . 'user/dashboard'); exit;
@@ -390,29 +418,34 @@ final class GeneralController extends BaseController
     }
 
     /* ===== TRAJETS : créer/démarrer/terminer/annuler ===== */
+
     public function createRide(): void
     {
         Security::ensure(['USER']);
         $uid = (int)($_SESSION['user']['id'] ?? 0);
 
+        // je force l’ajout d’un véhicule avant de pouvoir publier un trajet
         $vehicles = $uid ? Vehicle::forUser($uid) : [];
         if (empty($vehicles)) {
             $_SESSION['flash_error'] = "Ajoutez d'abord un véhicule pour publier un trajet.";
             header('Location: ' . BASE_URL . 'user/vehicle'); exit;
         }
 
+        // je gère la soumission POST
         if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             if (!Security::checkCsrf($_POST['csrf'] ?? null)) {
                 $_SESSION['flash_error'] = 'Session expirée, veuillez réessayer.';
                 header('Location: ' . BASE_URL . 'user/ride/create'); exit;
             }
 
+            // je vérifie que le véhicule m’appartient
             $vehicleId = (int)($_POST['vehicle_id'] ?? 0);
             if ($vehicleId <= 0 || !Vehicle::findOwned($vehicleId, $uid)) {
                 $_SESSION['flash_error'] = "Véhicule invalide.";
                 header('Location: ' . BASE_URL . 'user/ride/create'); exit;
             }
 
+            // payload minimal pour créer un trajet
             $payload = [
                 'from_city'  => trim((string)($_POST['from_city']  ?? '')),
                 'to_city'    => trim((string)($_POST['to_city']    ?? '')),
@@ -423,11 +456,13 @@ final class GeneralController extends BaseController
                 'notes'      => trim((string)($_POST['notes'] ?? '')),
             ];
 
+            // validation de base
             if ($payload['from_city']==='' || $payload['to_city']==='' || $payload['date_start']==='' || $payload['date_end']==='' || $payload['seats']<=0) {
                 $_SESSION['flash_error'] = 'Ville départ, arrivée, dates et places sont obligatoires.';
                 header('Location: ' . BASE_URL . 'user/ride/create'); exit;
             }
 
+            // cohérence des dates (arrivée > départ)
             try {
                 $ds = new \DateTime($payload['date_start']);
                 $de = new \DateTime($payload['date_end']);
@@ -440,8 +475,8 @@ final class GeneralController extends BaseController
                 header('Location: ' . BASE_URL . 'user/ride/create'); exit;
             }
 
+            // je tente d’utiliser createForDriver si dispo, sinon je retombe sur create(...)
             $ok = false;
-
             if (method_exists(Ride::class, 'createForDriver')) {
                 $ok = (bool)Ride::createForDriver($uid, $vehicleId, $payload);
             } else {
@@ -458,7 +493,7 @@ final class GeneralController extends BaseController
                 }
             }
 
-            /* === ENVOI SYNCHRONE DE L'E-MAIL AU CONDUCTEUR (trajet publié) === */
+            /* === J’envoie un e-mail au conducteur pour confirmer la publication (synchrone, mais non bloquant si erreur) === */
             if ($ok) {
                 try {
                     $driverUser = User::findById($uid) ?: [];
@@ -480,6 +515,7 @@ final class GeneralController extends BaseController
                         ];
                         $sent = (new Mailer())->sendRidePublished($driver, $rideForMail);
                         if (!$sent) {
+                            // je log au cas où la conf SMTP n’est pas bonne
                             error_log('[MAIL createRide] sendRidePublished=false (vérifier config SMTP / logs PHPMailer)');
                             $_SESSION['flash_warning'] = "Trajet publié (⚠️ e-mail de confirmation non envoyé).";
                         }
@@ -489,7 +525,7 @@ final class GeneralController extends BaseController
                     $_SESSION['flash_warning'] = "Trajet publié (⚠️ e-mail non envoyé).";
                 }
             }
-            /* === FIN ENVOI E-MAIL === */
+            /* === fin notification e-mail === */
 
             if ($ok) {
                 $_SESSION['flash_success'] = 'Trajet publié.';
@@ -500,6 +536,7 @@ final class GeneralController extends BaseController
             }
         }
 
+        // GET -> j’affiche le formulaire de création de trajet
         $this->render('pages/create_ride', [
             'title'    => 'Publier un trajet',
             'vehicles' => $vehicles
@@ -510,12 +547,14 @@ final class GeneralController extends BaseController
     {
         Security::ensure(['USER']);
 
+        // je récupère l’ID du trajet depuis GET ou POST
         $rideId = (int)($_GET['id'] ?? $_POST['id'] ?? 0);
         if ($rideId <= 0) { $_SESSION['flash_error']='Trajet invalide.'; header('Location: ' . BASE_URL . 'user/dashboard'); exit; }
 
         $ride = Ride::findById($rideId);
         $uid  = (int)($_SESSION['user']['id'] ?? 0);
 
+        // je m’assure que le trajet m’appartient (je suis le conducteur)
         if (!$ride || (int)$ride['driver_id'] !== $uid) {
             $_SESSION['flash_error'] = "Trajet introuvable ou non autorisé.";
             header('Location: ' . BASE_URL . 'user/dashboard'); exit;
@@ -527,6 +566,7 @@ final class GeneralController extends BaseController
         try {
             $pdo->beginTransaction();
 
+            // je verrouille la ligne pour éviter un double démarrage
             $st = $pdo->prepare("SELECT status, date_start FROM rides WHERE id = :id FOR UPDATE");
             $st->execute([':id'=>$rideId]);
             $row = $st->fetch(PDO::FETCH_ASSOC) ?: [];
@@ -538,6 +578,7 @@ final class GeneralController extends BaseController
                 header('Location: ' . BASE_URL . 'user/dashboard'); exit;
             }
 
+            // je passe le trajet en STARTED (si pas déjà démarré)
             $pdo->prepare("
                 UPDATE rides 
                    SET status='STARTED', 
@@ -576,6 +617,7 @@ final class GeneralController extends BaseController
         try {
             $pdo->beginTransaction();
 
+            // je verrouille pour éviter un double "fin de trajet"
             $st = $pdo->prepare("SELECT status FROM rides WHERE id = :id FOR UPDATE");
             $st->execute([':id'=>$rideId]);
             $row = $st->fetch(PDO::FETCH_ASSOC) ?: [];
@@ -587,6 +629,7 @@ final class GeneralController extends BaseController
                 header('Location: ' . BASE_URL . 'user/dashboard'); exit;
             }
 
+            // je marque comme FINISHED et j’enregistre une date de fin si manquante
             $pdo->prepare("UPDATE rides SET status='FINISHED', date_end = COALESCE(date_end, NOW()) WHERE id=:id")
                 ->execute([':id'=>$rideId]);
 
@@ -597,11 +640,11 @@ final class GeneralController extends BaseController
             header('Location: ' . BASE_URL . 'user/dashboard'); exit;
         }
 
-        /* Invitations d’avis (robuste) */
+        /* J’envoie les invitations d’avis aux passagers (robuste + liens absolus) */
         $passengers = Ride::passengersWithEmailForRide($rideId);
         $mailer = new Mailer();
 
-        // ✅ base absolue pour les liens d'email
+        // je construis l’URL de base (env ou auto depuis HTTP_HOST)
         $base = rtrim(
             getenv('APP_URL')
             ?: (
@@ -617,8 +660,9 @@ final class GeneralController extends BaseController
             $toEmail = (string)($p['email'] ?? '');
             if ($toEmail === '') { continue; }
 
+            // je signe un jeton limité 7 jours pour écrire un avis
             $token = Security::signReviewToken($rideId, (int)$p['id'], time() + 7 * 86400);
-            $link  = $base . '/reviews/new?token=' . rawurlencode($token); // ✅ absolu
+            $link  = $base . '/reviews/new?token=' . rawurlencode($token);
 
             try {
                 $mailer->sendReviewInvite(
@@ -633,7 +677,7 @@ final class GeneralController extends BaseController
                     ],
                     $link
                 );
-                // Debug facultatif du lien dans les logs
+                // je log le lien pour debug si besoin
                 error_log('[REVIEW_INVITE_LINK] ' . $link);
 
                 $sent++;
@@ -669,10 +713,11 @@ final class GeneralController extends BaseController
         try {
             $pdo->beginTransaction();
 
-            // Verrouille les réservations confirmées
+            // je verrouille d’abord les réservations confirmées de ce trajet
             $pdo->prepare("SELECT id FROM bookings WHERE ride_id=:r AND UPPER(status)='CONFIRMED' FOR UPDATE")
                 ->execute([':r'=>$rideId]);
 
+            // je récupère les bookings concernés + emails pour informer et rembourser
             $bs = $pdo->prepare("
                 SELECT b.id, b.passenger_id, b.credits_spent, u.email, u.prenom, u.nom
                 FROM bookings b
@@ -682,6 +727,7 @@ final class GeneralController extends BaseController
             $bs->execute([':r'=>$rideId]);
             $bookings = $bs->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+            // pour chaque réservation: je rembourse les crédits et je mets le statut à CANCELLED
             foreach ($bookings as $b) {
                 $credits = (int)($b['credits_spent'] ?? 0);
                 if ($credits > 0) {
@@ -692,11 +738,12 @@ final class GeneralController extends BaseController
                     ->execute([':id'=>(int)$b['id']]);
             }
 
+            // je passe le trajet en CANCELLED
             $pdo->prepare("UPDATE rides SET status='CANCELLED' WHERE id=:id")->execute([':id'=>$rideId]);
 
             $pdo->commit();
 
-            // Mails d’info (non bloquants)
+            // Après commit, j’envoie les e-mails d’info (je n’échoue pas la page si SMTP HS)
             $mailer = new Mailer();
             foreach ($bookings as $b) {
                 $to = (string)($b['email'] ?? '');
@@ -723,8 +770,8 @@ final class GeneralController extends BaseController
 
     /* ====== MA NOTE / AVIS ====== */
     /**
-     * Page “Ma note” (liste des avis + moyenne).
-     * Vue attendue : app/Views/pages/driver_ratings.php
+     * Page “Ma note” (moyenne + distribution + listes d’avis approuvés/en attente).
+     * Vue: app/Views/pages/driver_ratings.php
      */
     public function ratings(): void
     {
@@ -737,13 +784,12 @@ final class GeneralController extends BaseController
         $pending  = [];
         $distribution = [1=>0,2=>0,3=>0,4=>0,5=>0];
 
-        /* 1) On tente via le modèle Review (s’il fournit les méthodes) */
+        /* 1) Je tente via le modèle Review si les méthodes existent */
         try {
             $rm = new Review();
 
-            // moyenne + count
             if (method_exists($rm, 'avgForDriver')) {
-                $avg = $rm->avgForDriver($uid);
+                $avg = $rm->avgForDriver($uid); // moyenne arrondie à 0.1 côté modèle
             }
             if (method_exists($rm, 'avgForDrivers')) {
                 $map = $rm->avgForDrivers([$uid]);
@@ -752,27 +798,28 @@ final class GeneralController extends BaseController
                 }
             }
 
-            // listes
+            // je prends les 100 derniers approuvés si possible
             if (method_exists($rm, 'approvedForDriver')) {
                 $approved = $rm->recentApprovedForDriver($uid, 100);
             } elseif (method_exists($rm, 'recentApprovedForDriver')) {
                 $approved = $rm->recentApprovedForDriver($uid, 100);
             }
 
+            // et les en attente
             if (method_exists($rm, 'pendingForDriver')) {
                 $pending = $rm->pendingForDriver($uid, 100);
             }
 
-            // distribution simple
+            // je construis une distribution simple [1..5]
             foreach ($approved as $a) {
                 $n = (int)($a['note'] ?? $a['rating'] ?? 0);
                 if ($n >=1 && $n <= 5) $distribution[$n]++;
             }
         } catch (\Throwable $e) {
-            // Ignore -> on passera au fallback MongoDB
+            // si le modèle n’est pas prêt, j’essaie le fallback Mongo direct
         }
 
-        /* 2) Fallback MongoDB direct si besoin */
+        /* 2) Fallback MongoDB direct si je n’ai rien (ou presque) */
         if ($avg === null || ($count === 0 && empty($approved) && empty($pending))) {
             try {
                 $fb = $this->mongoFallbackRatings($uid);
@@ -782,7 +829,7 @@ final class GeneralController extends BaseController
                 $pending      = $fb['pending'];
                 $distribution = $fb['distribution'];
             } catch (\Throwable $e) {
-                // Toujours ne pas casser la page
+                // si Mongo est totalement indispo, je n’affiche simplement rien
             }
         }
 
@@ -799,17 +846,20 @@ final class GeneralController extends BaseController
     /* ====== Helpers privés ====== */
 
     /**
-     * Fallback de lecture MongoDB si le modèle Review n’est pas dispo.
-     * Cherche dans la collection “avis” (par défaut) de la base “ecoride”.
+     * Fallback MongoDB quand le modèle Review n’est pas utilisable.
+     * - Je cherche dans la base "ecoride", collection "avis" (overrides via env).
+     * - J’accepte plusieurs noms de champs possibles (selon tests/captures).
      */
     private function mongoFallbackRatings(int $uid): array
     {
         if (!class_exists(\MongoDB\Client::class)) {
+            // si l’extension MongoDB n’est pas installée, je remonte des valeurs neutres
             return [
                 'avg'=>null,'count'=>0,'approved'=>[],'pending'=>[],'distribution'=>[1=>0,2=>0,3=>0,4=>0,5=>0]
             ];
         }
 
+        // je lis DSN/DB/collection depuis l’environnement (avec valeurs par défaut)
         $dsn     = getenv('MONGO_DSN') ?: 'mongodb://127.0.0.1:27017';
         $dbName  = getenv('MONGO_DB')  ?: 'ecoride';
         $collName= getenv('MONGO_COLLECTION_REVIEWS') ?: 'avis';
@@ -817,17 +867,18 @@ final class GeneralController extends BaseController
         $client = new \MongoDB\Client($dsn);
         $coll   = $client->selectCollection($dbName, $collName);
 
-        // Champs possibles (d’après ta capture : identifiant_du_conducteur / note / commentaire / statut)
+        // je tolère différentes clés possibles rencontrées dans les données
         $driverMatch = [
             '$or' => [
                 ['identifiant_du_conducteur' => $uid],
                 ['driver_id'                 => $uid],
                 ['identifiant_conducteur'    => $uid],
                 ['conducteur_id'             => $uid],
-                ['identifiant'               => $uid], // au cas où
+                ['identifiant'               => $uid],
             ]
         ];
 
+        // statuts : APPROUVÉ/APPROUVE/APPROVED / PENDING...
         $approvedMatch = [
             '$or' => [
                 ['statut' => 'APPROUVÉ'],
@@ -852,6 +903,7 @@ final class GeneralController extends BaseController
         $sum = 0; $count = 0;
         $distribution = [1=>0,2=>0,3=>0,4=>0,5=>0];
 
+        // je normalise les docs et je calcule la moyenne + distribution
         foreach ($approvedDocs as $d) {
             $row = $this->normalizeReviewDoc($d);
             $approved[] = $row;
@@ -873,10 +925,10 @@ final class GeneralController extends BaseController
         ];
     }
 
-    /** Convertit un doc Mongo en tableau simple avec clés standardisées. */
+    /** Je transforme un document Mongo (BSON) en tableau simple, avec des clés stables. */
     private function normalizeReviewDoc($doc): array
     {
-        // Convertit BSONDocument en array
+        // je convertis en array (safe)
         $arr = json_decode(json_encode($doc, JSON_PARTIAL_OUTPUT_ON_ERROR), true) ?: [];
 
         return [

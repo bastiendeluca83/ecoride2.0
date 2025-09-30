@@ -13,10 +13,14 @@ use App\Controllers\CronController;
 use App\Controllers\ReviewController;
 use App\Controllers\PublicProfileController; // ✅ profil public conducteur
 
-/* Public */
+/* =========================
+   Public
+   ========================= */
 $router->get('/',                          [HomeController::class, 'index']);
 
-/* Rides */
+/* =========================
+   Rides (recherche / liste / détail / réservation)
+   ========================= */
 $router->get('/rides',                     [RideController::class, 'list']);
 $router->post('/rides',                    [RideController::class, 'list']);
 $router->post('/search',                   [RideController::class, 'list']);
@@ -28,10 +32,19 @@ if (class_exists(\App\Controllers\TrajetController::class)) {
     $router->get('/trajet',                [TrajetController::class, 'show']);
 }
 
-/* Statiques */
+/* =========================
+   Pages statiques
+   ========================= */
+/* Mentions légales */
 $router->get('/mentions-legales',          [StaticController::class, 'mentions']);
+/* Alias pratiques vers la même page (évite 404 si l’URL varie) */
+$router->get('/legal',                     [StaticController::class, 'mentions']);
+$router->get('/mentions',                  [StaticController::class, 'mentions']);
+$router->get('/mentions_legales',          [StaticController::class, 'mentions']);
 
-/* Auth */
+/* =========================
+   Auth
+   ========================= */
 $router->get('/signup',                    [AuthController::class, 'signupForm']);
 $router->post('/signup',                   [AuthController::class, 'signup']);
 $router->get('/login',                     [AuthController::class, 'loginForm']);
@@ -40,16 +53,22 @@ $router->get('/logout',                    [AuthController::class, 'logout']);
 $router->post('/logout',                   [AuthController::class, 'logout']);
 $router->get('/verify-email',              [AuthController::class, 'verifyEmail']);
 
-/* Dashboard – passerelle + page covoiturage publique */
+/* =========================
+   Dashboard – passerelle + page covoiturage publique
+   ========================= */
 $router->get('/dashboard',                 [DashboardGatewayController::class, 'route']);
 $router->get('/covoiturage',               [RideController::class, 'covoiturage']);
 
-/* Espace user */
+/* =========================
+   Espace user
+   ========================= */
 $router->get('/user/dashboard',            [GeneralController::class, 'index']);
+
 $router->get('/profil/edit',               [GeneralController::class, 'editForm']);
 $router->post('/profil/edit',              [GeneralController::class, 'update']);
 $router->get('/profile/edit',              [GeneralController::class, 'redirectToProfilEdit']);
 $router->post('/profile/edit',             [GeneralController::class, 'update']);
+
 $router->get('/user/profile',              [GeneralController::class, 'profile']);
 $router->post('/user/profile/update',      [GeneralController::class, 'updateProfile']);
 $router->get('/profile',                   [GeneralController::class, 'profile']);
@@ -60,6 +79,7 @@ $router->get('/user/vehicle/edit',         [GeneralController::class, 'vehicleFo
 $router->post('/user/vehicle/add',         [GeneralController::class, 'addVehicle']);
 $router->post('/user/vehicle/edit',        [GeneralController::class, 'editVehicle']);
 $router->post('/user/vehicle/delete',      [GeneralController::class, 'deleteVehicle']);
+
 $router->get('/vehicle',                   [GeneralController::class, 'vehicleForm']);
 $router->get('/vehicle/edit',              [GeneralController::class, 'vehicleForm']);
 $router->post('/vehicle/add',              [GeneralController::class, 'addVehicle']);
@@ -89,13 +109,17 @@ $router->get('/ratings',                   [GeneralController::class, 'ratings']
 /* ✅ Profil public conducteur (clic sur avatar/nom depuis /covoiturage) */
 $router->get('/users/profile',             [PublicProfileController::class, 'show']);
 
-/* Employé */
+/* =========================
+   Espace employé
+   ========================= */
 $router->get('/employee/dashboard',        [EmployeeController::class, 'index']);
 $router->get('/employee/reviews',          [EmployeeController::class, 'reviews']);
 $router->post('/employee/reviews',         [EmployeeController::class, 'moderate']);
 $router->get('/employee',                  [EmployeeController::class, 'index']);
 
-/* Admin */
+/* =========================
+   Espace admin
+   ========================= */
 $router->get('/admin/dashboard',           [AdminController::class, 'index']);
 $router->post('/admin/suspend',            [AdminController::class, 'suspendAccount']);
 $router->post('/admin/employee/suspend',   [AdminController::class, 'suspendEmployee']);
@@ -104,7 +128,9 @@ $router->post('/admin/employees/create',   [AdminController::class, 'createEmplo
 $router->get('/admin',                     [AdminController::class, 'index']);
 $router->get('/admin/api/credits-history', [AdminController::class, 'apiCreditsHistory']);
 
-/* Avis (NoSQL) */
+/* =========================
+   Avis (NoSQL)
+   ========================= */
 $router->get('/reviews/new',               [ReviewController::class, 'new']);
 $router->post('/reviews',                  [ReviewController::class, 'create']);
 
@@ -112,6 +138,8 @@ $router->post('/reviews',                  [ReviewController::class, 'create']);
 $router->get('/drivers/ratings',           [ReviewController::class, 'driverRatings']);
 $router->get('/driver/ratings',            [ReviewController::class, 'driverRatings']); // alias pratique
 
-/* Cron */
+/* =========================
+   Cron
+   ========================= */
 $router->get('/cron/run',                  [CronController::class, 'run']);
 $router->post('/cron/run',                 [CronController::class, 'run']);
