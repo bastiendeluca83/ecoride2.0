@@ -97,6 +97,9 @@ function pref_badge(string $k, int $v): string {
 $upcoming = $rides_upcoming ?? $ridesUpcoming ?? $rides ?? [];
 $past30   = $rides_past_30d ?? $ridesPast30 ?? $rides_past ?? [];
 $isLogged = !empty($_SESSION['user']['id']);
+
+/* partial note */
+$ratingPartial = __DIR__ . '/../partials/_rating_badge.php';
 ?>
 
 <div class="container-fluid px-4 py-5" style="background:linear-gradient(135deg,#f8f9fa 0%,#eef1f4 100%);min-height:100vh;">
@@ -131,6 +134,13 @@ $isLogged = !empty($_SESSION['user']['id']);
                 $price  = (int)($ride['price'] ?? 0);
                 $seats  = (int)($ride['seats_left'] ?? 0);
                 $prefs  = ride_prefs_from_row($ride);
+
+                $driverId   = (int)($ride['driver_id'] ?? 0);
+                $profileUrl = $driverId > 0 ? (BASE_URL . 'users/profile?id=' . $driverId) : '#';
+                $ratingsUrl = BASE_URL . 'drivers/ratings?id=' . $driverId;
+
+                $avgBadge   = isset($ride['rating_avg'])   ? (float)$ride['rating_avg']   : null;
+                $countBadge = isset($ride['rating_count']) ? (int)$ride['rating_count']   : 0;
               ?>
               <!-- largeurs responsives pour des cartes “larges” -->
               <div class="col-10 col-sm-8 col-md-6 col-lg-5 col-xl-4">
@@ -138,16 +148,42 @@ $isLogged = !empty($_SESSION['user']['id']);
                   <!-- En-tête conducteur -->
                   <div class="p-3 border-bottom d-flex align-items-center">
                     <?php if ($driverAvatar): ?>
-                      <img src="<?= BASE_URL . e($driverAvatar) ?>" alt="Conducteur"
-                           class="rounded-circle border me-3" width="72" height="72" style="object-fit:cover;">
+                      <a href="<?= e($profileUrl) ?>" class="me-3" title="Voir le profil">
+                        <img src="<?= BASE_URL . e($driverAvatar) ?>" alt="Conducteur"
+                             class="rounded-circle border" width="72" height="72" style="object-fit:cover;">
+                      </a>
                     <?php else: ?>
-                      <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center border me-3"
-                           style="width:72px;height:72px;font-size:24px;">
-                        <?= e(initials_from_name($driverName)) ?>
-                      </div>
+                      <a href="<?= e($profileUrl) ?>" class="me-3 text-decoration-none" title="Voir le profil">
+                        <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center border"
+                             style="width:72px;height:72px;font-size:24px;">
+                          <?= e(initials_from_name($driverName)) ?>
+                        </div>
+                      </a>
                     <?php endif; ?>
                     <div class="flex-grow-1">
-                      <div class="fw-bold text-dark"><?= e($driverName) ?></div>
+                      <div class="fw-bold text-dark d-flex align-items-center gap-2 flex-wrap">
+                        <?php if ($driverId > 0): ?>
+                          <a href="<?= e($profileUrl) ?>" class="text-decoration-none text-dark" title="Voir le profil">
+                            <span><?= e($driverName) ?></span>
+                          </a>
+                        <?php else: ?>
+                          <span><?= e($driverName) ?></span>
+                        <?php endif; ?>
+                        <!-- ⭐ Note cliquable -->
+                        <span>
+                          <?php if ($avgBadge !== null && file_exists($ratingPartial)): ?>
+                            <a href="<?= e($ratingsUrl) ?>" class="text-decoration-none" title="Voir les avis">
+                              <?php $avg = $avgBadge; $count = $countBadge; $small = true; include $ratingPartial; ?>
+                            </a>
+                          <?php elseif ($avgBadge !== null): ?>
+                            <a href="<?= e($ratingsUrl) ?>" class="text-decoration-none" title="Voir les avis">
+                              <span class="badge text-bg-warning"><?= number_format($avgBadge,1,',',' ') ?>/5 (<?= (int)$countBadge ?>)</span>
+                            </a>
+                          <?php else: ?>
+                            <span class="badge text-bg-secondary">—</span>
+                          <?php endif; ?>
+                        </span>
+                      </div>
                       <div class="small text-muted">
                         <?php if ($brand !== ''): ?>
                           <i class="fas fa-car-side me-1"></i><?= e($brand) ?>
@@ -271,21 +307,54 @@ $isLogged = !empty($_SESSION['user']['id']);
               <?php
                 $driverName   = ride_driver_name($ride);
                 $driverAvatar = ride_driver_avatar($ride);
+
+                $driverId   = (int)($ride['driver_id'] ?? 0);
+                $profileUrl = $driverId > 0 ? (BASE_URL . 'users/profile?id=' . $driverId) : '#';
+                $ratingsUrl = BASE_URL . 'drivers/ratings?id=' . $driverId;
+
+                $avgBadge   = isset($ride['rating_avg'])   ? (float)$ride['rating_avg']   : null;
+                $countBadge = isset($ride['rating_count']) ? (int)$ride['rating_count']   : 0;
               ?>
               <div class="col-md-6 col-lg-4">
                 <div class="card h-100 border rounded-3 shadow-sm bg-white">
                   <div class="p-3 d-flex align-items-center">
                     <?php if ($driverAvatar): ?>
-                      <img src="<?= BASE_URL . e($driverAvatar) ?>" alt="Conducteur"
-                           class="rounded-circle border me-3" width="56" height="56" style="object-fit:cover;">
+                      <a href="<?= e($profileUrl) ?>" class="me-3" title="Voir le profil">
+                        <img src="<?= BASE_URL . e($driverAvatar) ?>" alt="Conducteur"
+                             class="rounded-circle border" width="56" height="56" style="object-fit:cover;">
+                      </a>
                     <?php else: ?>
-                      <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center border me-3"
-                           style="width:56px;height:56px;font-size:18px;">
-                        <?= e(initials_from_name($driverName)) ?>
-                      </div>
+                      <a href="<?= e($profileUrl) ?>" class="me-3 text-decoration-none" title="Voir le profil">
+                        <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center border"
+                             style="width:56px;height:56px;font-size:18px;">
+                          <?= e(initials_from_name($driverName)) ?>
+                        </div>
+                      </a>
                     <?php endif; ?>
                     <div>
-                      <div class="fw-bold text-dark"><?= e($driverName) ?></div>
+                      <div class="fw-bold text-dark d-flex align-items-center gap-2 flex-wrap">
+                        <?php if ($driverId > 0): ?>
+                          <a href="<?= e($profileUrl) ?>" class="text-decoration-none text-dark" title="Voir le profil">
+                            <span><?= e($driverName) ?></span>
+                          </a>
+                        <?php else: ?>
+                          <span><?= e($driverName) ?></span>
+                        <?php endif; ?>
+                        <!-- ⭐ Note cliquable -->
+                        <span>
+                          <?php if ($avgBadge !== null && file_exists($ratingPartial)): ?>
+                            <a href="<?= e($ratingsUrl) ?>" class="text-decoration-none" title="Voir les avis">
+                              <?php $avg = $avgBadge; $count = $countBadge; $small = true; include $ratingPartial; ?>
+                            </a>
+                          <?php elseif ($avgBadge !== null): ?>
+                            <a href="<?= e($ratingsUrl) ?>" class="text-decoration-none" title="Voir les avis">
+                              <span class="badge text-bg-warning"><?= number_format($avgBadge,1,',',' ') ?>/5 (<?= (int)$countBadge ?>)</span>
+                            </a>
+                          <?php else: ?>
+                            <span class="badge text-bg-secondary">—</span>
+                          <?php endif; ?>
+                        </span>
+                      </div>
                       <div class="small text-muted">
                         <?= e($ride['from_city'] ?? '') ?> → <?= e($ride['to_city'] ?? '') ?>
                       </div>

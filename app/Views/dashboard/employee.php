@@ -8,20 +8,6 @@
 /** @var string $currentUrl */
 if (!function_exists('e')) { function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); } }
 ?>
-<div class="container my-4">
-  <div class="d-flex align-items-center justify-content-between mb-3">
-    <h1 class="h3 mb-0"><?= e($title ?? 'Espace Employé') ?></h1>
-    <div class="d-flex gap-2">
-      <a class="btn btn-outline-secondary" href="<?= e($crossHref ?? '/user/dashboard') ?>">
-        <?= e($crossLabel ?? 'Espace utilisateur') ?>
-      </a>
-      <form method="post" action="/logout">
-        <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
-        <input type="hidden" name="redirect" value="<?= e($currentUrl) ?>">
-        <button class="btn btn-outline-secondary">Déconnexion</button>
-      </form>
-    </div>
-  </div>
 
   <!-- ====== Tableau 1 : Incidents (annulations + avis <= 3 en PENDING) ====== -->
   <div class="card shadow-sm mb-4"><div class="card-body">

@@ -7,6 +7,8 @@ use App\Security\Security;
 use App\Models\Ride;
 use App\Models\Review;
 use App\Models\Booking;
+use App\Db\Sql;
+use PDO;
 
 final class ReviewController extends BaseController
 {
@@ -98,7 +100,7 @@ final class ReviewController extends BaseController
             'driver_id'    => (int)$ride['driver_id'],
             'passenger_id' => $passId,
             'note'         => $note,
-            'comment'      => $comment, // commentaire optionnel (tu peux imposer un min si tu veux)
+            'comment'      => $comment, // commentaire optionnel
             'token_id'     => substr(hash('sha1', $token), 0, 20),
             'meta'         => [
                 'ua' => $_SERVER['HTTP_USER_AGENT'] ?? '',
@@ -113,5 +115,91 @@ final class ReviewController extends BaseController
         }
 
         header('Location: ' . BASE_URL); exit;
+    }
+
+    /* ✅ GET /drivers/ratings?id=<driver_id>
+       Page publique “Avis du conducteur” (Mongo APPROVED) */
+    public function driverRatings(): void
+    {
+        $driverId = (int)($_GET['id'] ?? 0);
+        if ($driverId <= 0) {
+            http_response_code(404);
+            echo 'Conducteur introuvable.'; exit;
+        }
+
+        // Infos publiques du conducteur (SQL)
+        $pdo = Sql::pdo();
+        $st  = $pdo->prepare("
+            SELECT id, prenom, nom, avatar_path 
+            FROM users 
+            WHERE id = :id
+            LIMIT 1
+        ");
+        $st->execute([':id' => $driverId]);
+        $driver = $st->fetch(PDO::FETCH_ASSOC) ?: null;
+        if (!$driver) {
+            http_response_code(404);
+            echo 'Conducteur introuvable.'; exit;
+        }
+
+        // Données avis (Mongo)
+        $avg          = null;
+        $count        = 0;
+        $distribution = [1=>0,2=>0,3=>0,4=>0,5=>0];
+        $reviews      = [];
+
+        try {
+            $rm = new Review();
+
+            // moyenne
+            if (method_exists($rm, 'avgForDriver')) {
+                $avg = $rm->avgForDriver($driverId);
+            }
+
+            // compteur (si dispo via map agrégée)
+            if (method_exists($rm, 'avgForDrivers')) {
+                $map = $rm->avgForDrivers([$driverId]);
+                if (isset($map[$driverId]['count'])) {
+                    $count = (int)$map[$driverId]['count'];
+                }
+            }
+
+            // liste d'avis approuvés (on essaye plusieurs méthodes selon ton modèle)
+            if (method_exists($rm, 'allApprovedForDriver')) {
+                $reviews = $rm->allApprovedForDriver($driverId);
+            } elseif (method_exists($rm, 'findByDriverApproved')) {
+                // large limite pour la distrib
+                $reviews = $rm->findByDriverApproved($driverId, 500);
+            } elseif (method_exists($rm, 'approvedForDriver')) {
+                $reviews = $rm->approvedForDriver($driverId);
+            } elseif (method_exists($rm, 'getApprovedForDriver')) {
+                $reviews = $rm->getApprovedForDriver($driverId);
+            } else {
+                $reviews = [];
+            }
+
+            // si le compteur n’a pas été obtenu via la map, on fallback sur la liste
+            if ($count === 0 && !empty($reviews)) {
+                $count = count($reviews);
+            }
+
+            // distribution 1..5
+            foreach ($reviews as $rv) {
+                $n = (int)($rv['note'] ?? $rv['rating'] ?? 0);
+                if ($n >= 1 && $n <= 5) { $distribution[$n]++; }
+            }
+        } catch (\Throwable $e) {
+            // on n'éclate pas la page si Mongo est KO
+            error_log('[driverRatings] '.$e->getMessage());
+        }
+
+        $this->render('pages/driver_ratings', [
+            'title'        => 'Avis du conducteur',
+            'driver'       => $driver,
+            'avg'          => $avg,
+            'count'        => $count,
+            'reviews'      => $reviews,
+            'distribution' => $distribution,
+        ]);
     }
 }

@@ -11,6 +11,7 @@ use App\Controllers\StaticController;
 use App\Controllers\TrajetController;
 use App\Controllers\CronController;
 use App\Controllers\ReviewController;
+use App\Controllers\PublicProfileController; // ✅ profil public conducteur
 
 /* Public */
 $router->get('/',                          [HomeController::class, 'index']);
@@ -81,9 +82,12 @@ $router->post('/ride/start',               [GeneralController::class, 'startRide
 $router->get('/user/ride/end',             [GeneralController::class, 'endRide']);
 $router->post('/user/ride/end',            [GeneralController::class, 'endRide']);
 
-/* ✅ Page “Ma note” (accessible depuis la carte du dashboard) */
+/* ✅ Page “Ma note” (espace utilisateur) */
 $router->get('/user/ratings',              [GeneralController::class, 'ratings']);
 $router->get('/ratings',                   [GeneralController::class, 'ratings']);
+
+/* ✅ Profil public conducteur (clic sur avatar/nom depuis /covoiturage) */
+$router->get('/users/profile',             [PublicProfileController::class, 'show']);
 
 /* Employé */
 $router->get('/employee/dashboard',        [EmployeeController::class, 'index']);
@@ -103,6 +107,10 @@ $router->get('/admin/api/credits-history', [AdminController::class, 'apiCreditsH
 /* Avis (NoSQL) */
 $router->get('/reviews/new',               [ReviewController::class, 'new']);
 $router->post('/reviews',                  [ReviewController::class, 'create']);
+
+/* ✅ Page publique : avis d’un conducteur (via ?id=<driver_id>) */
+$router->get('/drivers/ratings',           [ReviewController::class, 'driverRatings']);
+$router->get('/driver/ratings',            [ReviewController::class, 'driverRatings']); // alias pratique
 
 /* Cron */
 $router->get('/cron/run',                  [CronController::class, 'run']);

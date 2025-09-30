@@ -13,8 +13,13 @@ final class EmployeeController extends BaseController
     {
         Security::ensure(['EMPLOYEE','ADMIN']);
 
-        // Dernières annulations (incidents)
+        // Incidents (annulations récentes)
         $incidents = Booking::cancelledLast(20);
+
+        // ✅ Avis en attente (Mongo)
+        $rm       = new Review();
+        $pending  = $rm->findPending(10);        // on en montre un aperçu (10) sur le dashboard
+        $pendingCount = count($pending);         // utile pour un badge/compteur
 
         $role       = Security::role();
         $crossLabel = ($role === 'ADMIN') ? 'Espace administrateur' : 'Espace utilisateur';
@@ -26,12 +31,14 @@ final class EmployeeController extends BaseController
         $currentUrl = $_SERVER['REQUEST_URI'] ?? (BASE_URL . 'employee');
 
         $this->render('dashboard/employee', [
-            'title'      => 'Espace Employé',
-            'incidents'  => $incidents,
-            'crossLabel' => $crossLabel,
-            'crossHref'  => $crossHref,
-            'csrf'       => $csrf,
-            'currentUrl' => $currentUrl,
+            'title'        => 'Espace Employé',
+            'incidents'    => $incidents,
+            'pending'      => $pending,       // ✅ passé à la vue
+            'pendingCount' => $pendingCount,  // ✅ optionnel
+            'crossLabel'   => $crossLabel,
+            'crossHref'    => $crossHref,
+            'csrf'         => $csrf,
+            'currentUrl'   => $currentUrl,
         ]);
     }
 
@@ -40,14 +47,13 @@ final class EmployeeController extends BaseController
     {
         Security::ensure(['EMPLOYEE','ADMIN']);
 
-        $rm    = new Review();              // <- modèle Mongo
-        $items = $rm->findPending(100);     // tableau d'avis en attente
+        $rm    = new Review();
+        $items = $rm->findPending(100);
 
         if (session_status() === \PHP_SESSION_NONE) { session_start(); }
         if (empty($_SESSION['csrf'])) { $_SESSION['csrf'] = bin2hex(random_bytes(32)); }
         $csrf = $_SESSION['csrf'];
 
-        // ✅ nom de vue corrigé (avec "s")
         $this->render('reviews/reviews_pending', [
             'title' => 'Avis en attente de validation',
             'items' => $items,

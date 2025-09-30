@@ -754,7 +754,7 @@ final class GeneralController extends BaseController
 
             // listes
             if (method_exists($rm, 'approvedForDriver')) {
-                $approved = $rm->approvedForDriver($uid, 100);
+                $approved = $rm->recentApprovedForDriver($uid, 100);
             } elseif (method_exists($rm, 'recentApprovedForDriver')) {
                 $approved = $rm->recentApprovedForDriver($uid, 100);
             }

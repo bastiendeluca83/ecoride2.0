@@ -16,6 +16,10 @@ $seats = (int)($ride['seats_left'] ?? 0);
 $price = (int)($ride['price'] ?? 0);
 
 $driverName = trim((string)($ride['driver_display_name'] ?? 'Conducteur'));
+$driverId   = (int)($ride['driver_id'] ?? 0);
+$profileUrl = $driverId > 0 ? (BASE_URL ?? '').'users/profile?id='.$driverId : '#';
+$ratingsUrl = (BASE_URL ?? '').'drivers/ratings?id='.$driverId;
+
 $avatar = $ride['driver_avatar'] ?? '';
 if ($avatar && $avatar[0] !== '/') { $avatar = '/'.$avatar; }
 $avatarUrl = $avatar ?: 'https://api.dicebear.com/9.x/initials/svg?seed='.urlencode($driverName);
@@ -34,7 +38,7 @@ $prefLabel = function(string $type, $v): string {
 };
 
 /* includes (rating + liste avis) */
-$ratingInclude = __DIR__ . '/../partials/_rating_badge.php';
+$ratingInclude  = __DIR__ . '/../partials/_rating_badge.php';
 $reviewsInclude = __DIR__ . '/../partials/_reviews_list.php';
 ?>
 
@@ -44,11 +48,13 @@ $reviewsInclude = __DIR__ . '/../partials/_reviews_list.php';
   <h1 class="mb-0"><?= h($ride['from_city']) ?> → <?= h($ride['to_city']) ?></h1>
   <?php if ($eco): ?><span class="badge text-bg-success">Éco</span><?php endif; ?>
   <?php
-    // Affiche la moyenne si disponible
+    // Affiche la moyenne si disponible (cliquable vers avis conducteur)
     if (isset($avgNote) && $avgNote !== null && file_exists($ratingInclude)) {
         $avg = (float)$avgNote;
         $count = isset($reviews) ? count($reviews) : null; // fallback si non injecté
+        echo '<a href="'.h($ratingsUrl).'" class="text-decoration-none">';
         include $ratingInclude;
+        echo '</a>';
     }
   ?>
 </div>
@@ -132,20 +138,33 @@ $reviewsInclude = __DIR__ . '/../partials/_reviews_list.php';
       <div class="card-body">
         <h5 class="card-title">Chauffeur</h5>
         <div class="d-flex align-items-center gap-3">
-          <img src="<?= h($avatarUrl) ?>" alt="Avatar" width="64" height="64" class="rounded-circle border">
+          <a href="<?= h($profileUrl) ?>" title="Voir le profil">
+            <img src="<?= h($avatarUrl) ?>" alt="Avatar" width="64" height="64" class="rounded-circle border">
+          </a>
           <div class="fw-bold">
-            <?= h($driverName) ?>
+            <a class="text-decoration-none text-dark" href="<?= h($profileUrl) ?>" title="Voir le profil">
+              <?= h($driverName) ?>
+            </a>
             <?php
               if (isset($avgNote) && $avgNote !== null && file_exists($ratingInclude)) {
                   $avg = (float)$avgNote;
                   $count = isset($reviews) ? count($reviews) : null;
                   $small = true;
-                  echo '<div class="mt-1">';
+                  echo '<div class="mt-1"><a href="'.h($ratingsUrl).'" class="text-decoration-none" title="Voir les avis">';
                   include $ratingInclude;
-                  echo '</div>';
+                  echo '</a></div>';
               }
             ?>
           </div>
+        </div>
+
+        <div class="d-flex gap-2 mt-3">
+          <a class="btn btn-outline-secondary btn-sm flex-fill" href="<?= h($profileUrl) ?>">
+            Voir le profil
+          </a>
+          <a class="btn btn-outline-primary btn-sm flex-fill" href="<?= h($ratingsUrl) ?>">
+            Voir les avis
+          </a>
         </div>
 
         <hr>
