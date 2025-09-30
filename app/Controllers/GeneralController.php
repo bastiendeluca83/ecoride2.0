@@ -11,7 +11,7 @@ use App\Models\Booking;   // ✅ bon namespace
 use App\Models\Vehicle;   // ✅ bon namespace
 use App\Models\UserPreferences;
 use App\Services\Mailer;
-use App\Models\Review;     // ✅ AJOUT : pour récupérer la note depuis Mongo
+use App\Models\Review;     // ✅ Pour récupérer la note depuis Mongo
 use PDO;
 
 final class GeneralController extends BaseController
@@ -106,16 +106,25 @@ final class GeneralController extends BaseController
             'co2_total'       => $co2Total,
         ];
 
-        /* ✅ AJOUT : Note moyenne du conducteur depuis Mongo (avis APPROVED) */
+        /* ✅ Note moyenne du conducteur depuis Mongo (avis APPROVED) + derniers avis */
         $driver_rating_avg = null;
         $driver_rating_count = 0;
+        $driver_reviews_recent = [];
         try {
             if ($uid > 0) {
                 $rm = new Review();
-                $driver_rating_avg = $rm->avgForDriver($uid);      // moyenne arrondie à 0.1
-                $map = $rm->avgForDrivers([$uid]);                 // récupère aussi le count
-                if (isset($map[$uid])) {
-                    $driver_rating_count = (int)$map[$uid]['count'];
+                if (method_exists($rm, 'avgForDriver')) {
+                    $driver_rating_avg = $rm->avgForDriver($uid);      // moyenne arrondie à 0.1
+                }
+                if (method_exists($rm, 'avgForDrivers')) {
+                    $map = $rm->avgForDrivers([$uid]);                 // récupère aussi le count
+                    if (isset($map[$uid])) {
+                        $driver_rating_count = (int)$map[$uid]['count'];
+                    }
+                }
+                // 🔎 pour la modale
+                if (method_exists($rm, 'recentApprovedForDriver')) {
+                    $driver_reviews_recent = $rm->recentApprovedForDriver($uid, 5);
                 }
             }
         } catch (\Throwable $e) {
@@ -129,9 +138,10 @@ final class GeneralController extends BaseController
             'rides'        => $rides,
             'vehicles'     => $vehicles,
             'stats'        => $stats,
-            /* ✅ AJOUT : passe la note au template */
-            'driver_rating_avg'   => $driver_rating_avg,
-            'driver_rating_count' => $driver_rating_count,
+            /* ✅ passe la note + derniers avis au template */
+            'driver_rating_avg'    => $driver_rating_avg,
+            'driver_rating_count'  => $driver_rating_count,
+            'driver_reviews_recent'=> $driver_reviews_recent,
         ]);
     }
 
@@ -709,5 +719,176 @@ final class GeneralController extends BaseController
         }
 
         header('Location: ' . BASE_URL . 'user/dashboard'); exit;
+    }
+
+    /* ====== MA NOTE / AVIS ====== */
+    /**
+     * Page “Ma note” (liste des avis + moyenne).
+     * Vue attendue : app/Views/pages/driver_ratings.php
+     */
+    public function ratings(): void
+    {
+        Security::ensure(['USER']);
+        $uid = (int)($_SESSION['user']['id'] ?? 0);
+
+        $avg = null;
+        $count = 0;
+        $approved = [];
+        $pending  = [];
+        $distribution = [1=>0,2=>0,3=>0,4=>0,5=>0];
+
+        /* 1) On tente via le modèle Review (s’il fournit les méthodes) */
+        try {
+            $rm = new Review();
+
+            // moyenne + count
+            if (method_exists($rm, 'avgForDriver')) {
+                $avg = $rm->avgForDriver($uid);
+            }
+            if (method_exists($rm, 'avgForDrivers')) {
+                $map = $rm->avgForDrivers([$uid]);
+                if (isset($map[$uid]['count'])) {
+                    $count = (int)$map[$uid]['count'];
+                }
+            }
+
+            // listes
+            if (method_exists($rm, 'approvedForDriver')) {
+                $approved = $rm->approvedForDriver($uid, 100);
+            } elseif (method_exists($rm, 'recentApprovedForDriver')) {
+                $approved = $rm->recentApprovedForDriver($uid, 100);
+            }
+
+            if (method_exists($rm, 'pendingForDriver')) {
+                $pending = $rm->pendingForDriver($uid, 100);
+            }
+
+            // distribution simple
+            foreach ($approved as $a) {
+                $n = (int)($a['note'] ?? $a['rating'] ?? 0);
+                if ($n >=1 && $n <= 5) $distribution[$n]++;
+            }
+        } catch (\Throwable $e) {
+            // Ignore -> on passera au fallback MongoDB
+        }
+
+        /* 2) Fallback MongoDB direct si besoin */
+        if ($avg === null || ($count === 0 && empty($approved) && empty($pending))) {
+            try {
+                $fb = $this->mongoFallbackRatings($uid);
+                $avg          = $fb['avg'];
+                $count        = $fb['count'];
+                $approved     = $fb['approved'];
+                $pending      = $fb['pending'];
+                $distribution = $fb['distribution'];
+            } catch (\Throwable $e) {
+                // Toujours ne pas casser la page
+            }
+        }
+
+        $this->render('pages/driver_ratings', [
+            'title'        => 'Ma note',
+            'avg'          => $avg,
+            'count'        => $count,
+            'reviews'      => $approved,  // avis approuvés
+            'pending'      => $pending,   // avis en attente
+            'distribution' => $distribution
+        ]);
+    }
+
+    /* ====== Helpers privés ====== */
+
+    /**
+     * Fallback de lecture MongoDB si le modèle Review n’est pas dispo.
+     * Cherche dans la collection “avis” (par défaut) de la base “ecoride”.
+     */
+    private function mongoFallbackRatings(int $uid): array
+    {
+        if (!class_exists(\MongoDB\Client::class)) {
+            return [
+                'avg'=>null,'count'=>0,'approved'=>[],'pending'=>[],'distribution'=>[1=>0,2=>0,3=>0,4=>0,5=>0]
+            ];
+        }
+
+        $dsn     = getenv('MONGO_DSN') ?: 'mongodb://127.0.0.1:27017';
+        $dbName  = getenv('MONGO_DB')  ?: 'ecoride';
+        $collName= getenv('MONGO_COLLECTION_REVIEWS') ?: 'avis';
+
+        $client = new \MongoDB\Client($dsn);
+        $coll   = $client->selectCollection($dbName, $collName);
+
+        // Champs possibles (d’après ta capture : identifiant_du_conducteur / note / commentaire / statut)
+        $driverMatch = [
+            '$or' => [
+                ['identifiant_du_conducteur' => $uid],
+                ['driver_id'                 => $uid],
+                ['identifiant_conducteur'    => $uid],
+                ['conducteur_id'             => $uid],
+                ['identifiant'               => $uid], // au cas où
+            ]
+        ];
+
+        $approvedMatch = [
+            '$or' => [
+                ['statut' => 'APPROUVÉ'],
+                ['statut' => 'APPROUVE'],
+                ['status' => 'APPROVED'],
+            ]
+        ];
+        $pendingMatch = [
+            '$or' => [
+                ['statut' => 'EN ATTENTE'],
+                ['status' => 'PENDING'],
+            ]
+        ];
+
+        $opts = ['sort'=>['_id'=>-1], 'limit'=>100];
+
+        $approvedDocs = $coll->find(['$and'=>[$driverMatch, $approvedMatch]], $opts);
+        $pendingDocs  = $coll->find(['$and'=>[$driverMatch, $pendingMatch]],  $opts);
+
+        $approved = [];
+        $pending  = [];
+        $sum = 0; $count = 0;
+        $distribution = [1=>0,2=>0,3=>0,4=>0,5=>0];
+
+        foreach ($approvedDocs as $d) {
+            $row = $this->normalizeReviewDoc($d);
+            $approved[] = $row;
+            $n = (int)($row['note'] ?? 0);
+            if ($n>=1 && $n<=5) { $sum += $n; $count++; $distribution[$n]++; }
+        }
+        foreach ($pendingDocs as $d) {
+            $pending[] = $this->normalizeReviewDoc($d);
+        }
+
+        $avg = $count ? round($sum / $count, 1) : null;
+
+        return [
+            'avg' => $avg,
+            'count' => $count,
+            'approved' => $approved,
+            'pending'  => $pending,
+            'distribution' => $distribution
+        ];
+    }
+
+    /** Convertit un doc Mongo en tableau simple avec clés standardisées. */
+    private function normalizeReviewDoc($doc): array
+    {
+        // Convertit BSONDocument en array
+        $arr = json_decode(json_encode($doc, JSON_PARTIAL_OUTPUT_ON_ERROR), true) ?: [];
+
+        return [
+            'id'             => (string)($arr['_id']['$oid'] ?? $arr['_id'] ?? ''),
+            'ride_id'        => (int)($arr['identifiant_de_trajet'] ?? $arr['identifiant_trajet'] ?? $arr['ride_id'] ?? 0),
+            'driver_id'      => (int)($arr['identifiant_du_conducteur'] ?? $arr['driver_id'] ?? 0),
+            'passenger_id'   => (int)($arr['identifiant_passager'] ?? $arr['passenger_id'] ?? 0),
+            'note'           => (int)($arr['note'] ?? $arr['rating'] ?? 0),
+            'commentaire'    => (string)($arr['commentaire'] ?? $arr['comment'] ?? ''),
+            'statut'         => (string)($arr['statut'] ?? $arr['status'] ?? ''),
+            'jeton_id'       => (string)($arr['jeton_id'] ?? $arr['token_id'] ?? ''),
+            'created_at'     => (string)($arr['created_at'] ?? $arr['date'] ?? ''),
+        ];
     }
 }

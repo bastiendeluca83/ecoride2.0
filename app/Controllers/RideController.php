@@ -151,6 +151,31 @@ class RideController extends BaseController
         $st2->execute();
         $ridesPast30 = $st2->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+        /* ✅ AJOUT : notes étoilées sur /covoiturage */
+        try {
+            $rm = new Review();
+            $ids = array_unique(array_merge(
+                array_map(fn($r)=>(int)$r['driver_id'], $ridesUpcoming),
+                array_map(fn($r)=>(int)$r['driver_id'], $ridesPast30)
+            ));
+            $map = $rm->avgForDrivers($ids);
+
+            foreach ($ridesUpcoming as &$r) {
+                $did = (int)$r['driver_id'];
+                $r['rating_avg']   = isset($map[$did]) ? (float)$map[$did]['avg']   : null;
+                $r['rating_count'] = isset($map[$did]) ? (int)$map[$did]['count']   : 0;
+            }
+            unset($r);
+            foreach ($ridesPast30 as &$r) {
+                $did = (int)$r['driver_id'];
+                $r['rating_avg']   = isset($map[$did]) ? (float)$map[$did]['avg']   : null;
+                $r['rating_count'] = isset($map[$did]) ? (int)$map[$did]['count']   : 0;
+            }
+            unset($r);
+        } catch (\Throwable $e) {
+            // silencieux
+        }
+
         $this->render('pages/covoiturage', [
             'title'          => 'Covoiturage',
             'rides_upcoming' => $ridesUpcoming,

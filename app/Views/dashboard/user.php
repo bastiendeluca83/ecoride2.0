@@ -4,13 +4,14 @@
 /** @var array $rides */
 /** @var array $vehicles */
 /** @var array $stats */
-/** @var float|null $driver_rating_avg */     // ✅ ajouté pour la note
-/** @var int $driver_rating_count */           // ✅ ajouté pour le nombre d'avis
+/** @var float|null $driver_rating_avg */
+/** @var int $driver_rating_count */
+
 if (!function_exists('e')) {
   function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 }
 
-/* Calcule l'âge (années pleines) à partir d'une date YYYY-MM-DD */
+/* Calcule l'âge (années pleines) */
 if (!function_exists('age_years')) {
   function age_years(?string $dateNaissance): ?int {
     $d = $dateNaissance ? trim($dateNaissance) : '';
@@ -57,8 +58,12 @@ if (!function_exists('ride_status_badge')) {
   }
 }
 
-/* ✅ include du badge de note réutilisable */
+/* include du badge de note réutilisable */
 $ratingInclude = __DIR__ . '/../partials/_rating_badge.php';
+
+/* lien sécurisé vers la page Mes avis (token CSRF en query) */
+$csrf = \App\Security\Security::csrfToken();
+$ratingsUrl = BASE_URL . 'user/ratings?t=' . urlencode($csrf);
 ?>
 
 <div class="container-fluid px-4 py-5" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); min-height: 100vh;">
@@ -69,28 +74,31 @@ $ratingInclude = __DIR__ . '/../partials/_rating_badge.php';
         <h1 class="h2 mb-1 fw-bold text-dark">Bienvenue, <?= e($user['prenom'] ?? '') ?> <?= e($user['nom'] ?? 'Utilisateur') ?></h1>
         <p class="text-muted mb-0">Gérez vos trajets et votre profil EcoRide</p>
 
-        <!-- ✅ AJOUT : Affichage de la note moyenne du conducteur si disponible -->
-        <?php if (isset($driver_rating_avg) && $driver_rating_avg !== null && file_exists($ratingInclude)): ?>
+        <!-- Petit rappel compact (optionnel) -->
+        <?php if (isset($driver_rating_avg) && $driver_rating_avg !== null): ?>
           <div class="mt-2">
             <span class="me-2 text-muted small">Ma note conducteur :</span>
-            <?php
-              $avg = (float)$driver_rating_avg;
-              $count = (int)($driver_rating_count ?? 0);
-              $small = true;
-              include $ratingInclude;
-            ?>
+            <?php if (file_exists($ratingInclude)): ?>
+              <?php
+                $avg = (float)$driver_rating_avg;
+                $count = (int)($driver_rating_count ?? 0);
+                $small = true;
+                include $ratingInclude;
+              ?>
+            <?php else: ?>
+              <span class="badge text-bg-primary"><?= number_format((float)$driver_rating_avg, 1, ',', ' ') ?>/5 (<?= (int)($driver_rating_count ?? 0) ?>)</span>
+            <?php endif; ?>
           </div>
         <?php endif; ?>
-        <!-- ✅ FIN AJOUT -->
       </div>
       <a class="btn btn-outline-danger px-4 py-2 rounded-pill" href="<?= BASE_URL ?>logout">
         <i class="fas fa-sign-out-alt me-2"></i>Déconnexion
       </a>
     </div>
 
-    <!-- Statistiques -->
+    <!-- Statistiques (4 encarts) -->
     <div class="row justify-content-center g-3 mb-5">
-      <div class="col-md-4 col-lg-3">
+      <div class="col-md-3">
         <div class="card border-0 shadow-lg text-white h-100" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
           <div class="card-body text-center p-3">
             <div class="mb-2"><i class="fas fa-coins fa-2x text-white"></i></div>
@@ -100,7 +108,8 @@ $ratingInclude = __DIR__ . '/../partials/_rating_badge.php';
           </div>
         </div>
       </div>
-      <div class="col-md-4 col-lg-3">
+
+      <div class="col-md-3">
         <div class="card border-0 shadow-lg bg-white h-100">
           <div class="card-body text-center p-3">
             <div class="mb-2"><i class="fas fa-route fa-2x text-success"></i></div>
@@ -110,7 +119,8 @@ $ratingInclude = __DIR__ . '/../partials/_rating_badge.php';
           </div>
         </div>
       </div>
-      <div class="col-md-4 col-lg-3">
+
+      <div class="col-md-3">
         <div class="card border-0 shadow-lg bg-white h-100">
           <div class="card-body text-center p-3">
             <div class="mb-2"><i class="fas fa-leaf fa-2x text-warning"></i></div>
@@ -120,6 +130,36 @@ $ratingInclude = __DIR__ . '/../partials/_rating_badge.php';
           </div>
         </div>
       </div>
+
+      <!-- Encarts : MA NOTE -->
+      <div class="col-md-3">
+        <a href="<?= e($ratingsUrl) ?>" class="text-decoration-none">
+          <div class="card border-0 shadow-lg bg-white h-100">
+            <div class="card-body text-center p-3">
+              <div class="mb-2"><i class="fas fa-star fa-2x text-warning"></i></div>
+              <h6 class="card-title mb-2 fw-bold text-dark">Ma note</h6>
+              <div class="mb-1">
+                <?php if (isset($driver_rating_avg) && $driver_rating_avg !== null): ?>
+                  <?php if (file_exists($ratingInclude)): ?>
+                    <?php
+                      $avg = (float)$driver_rating_avg;
+                      $count = (int)($driver_rating_count ?? 0);
+                      $small = false;
+                      include $ratingInclude;
+                    ?>
+                  <?php else: ?>
+                    <span class="badge text-bg-primary"><?= number_format((float)$driver_rating_avg, 1, ',', ' ') ?>/5 (<?= (int)($driver_rating_count ?? 0) ?>)</span>
+                  <?php endif; ?>
+                <?php else: ?>
+                  <span class="badge text-bg-secondary">—</span>
+                <?php endif; ?>
+              </div>
+              <small class="text-muted fw-medium d-block">Cliquez pour voir mes avis</small>
+            </div>
+          </div>
+        </a>
+      </div>
+      <!-- /encart Ma note -->
     </div>
 
     <!-- Profil + Véhicule -->

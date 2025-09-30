@@ -72,15 +72,18 @@ $router->get('/ride/create',               [GeneralController::class, 'createRid
 $router->post('/ride/create',              [GeneralController::class, 'createRide']);
 $router->get('/ride/cancel',               [GeneralController::class, 'cancelRide']);
 
-/* >>>>>> AJOUT ICI : démarrer le trajet */
+/* Démarrer / terminer trajet */
 $router->get('/user/ride/start',           [GeneralController::class, 'startRide']);
 $router->post('/user/ride/start',          [GeneralController::class, 'startRide']);
 $router->get('/ride/start',                [GeneralController::class, 'startRide']);
 $router->post('/ride/start',               [GeneralController::class, 'startRide']);
 
-/* Fin de trajet (envoi d'invitations d’avis) */
 $router->get('/user/ride/end',             [GeneralController::class, 'endRide']);
 $router->post('/user/ride/end',            [GeneralController::class, 'endRide']);
+
+/* ✅ Page “Ma note” (accessible depuis la carte du dashboard) */
+$router->get('/user/ratings',              [GeneralController::class, 'ratings']);
+$router->get('/ratings',                   [GeneralController::class, 'ratings']);
 
 /* Employé */
 $router->get('/employee/dashboard',        [EmployeeController::class, 'index']);
