@@ -1,23 +1,43 @@
 <?php
-/** @var string $title */
-/** @var array $kpis */
-/** @var array $ridesPerDay */
-/** @var array $creditsPerDay */
-/** @var array $users */
-/** @var string $csrf */
-if (!function_exists('e')) { function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); } }
+/** 
+ * app/Views/admin/dashboard.php (vue)
+ * -----------------------------------
+ * Vue du tableau de bord administrateur.
+ * Elle est rendue par le layout global via BaseController::render().
+ *
+ * Variables attendues (injectées par le contrôleur) :
+ * - string $title            : titre de la page
+ * - array  $kpis             : chiffres clés (utilisateurs, trajets, crédits, etc.)
+ * - array  $ridesPerDay      : séries "trajets par jour" (14 derniers jours)
+ * - array  $creditsPerDay    : séries "crédits par jour" (14 derniers jours)
+ * - array  $users            : liste d'utilisateurs à gérer (id, nom, email, rôle, crédits, statut)
+ * - string $csrf             : token CSRF unique (généré côté contrôleur)
+ *
+ * Remarque MVC :
+ * - Ici je ne fais **que** de l'affichage (pas de requête DB). Tout vient du contrôleur.
+ */
+
+/** Helper d’échappement (XSS) */
+if (!function_exists('e')) { 
+  function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); } 
+}
 ?>
 <div class="container my-4">
+  <!-- En-tête : titre + raccourcis -->
   <div class="d-flex align-items-center justify-content-between mb-3">
     <h1 class="h3 mb-0"><?= e($title ?? 'Espace Administrateur') ?></h1>
     <div class="btn-group">
+      <!-- Raccourcis utiles : employé, admin, logout
+           NB: le 2e lien "Espace administrateur" pointe vers /user/dashboard.
+           Je laisse tel quel (peut-être voulu pour basculer sur l’espace user),
+           mais à valider fonctionnellement. -->
       <a class="btn btn-outline-secondary" href="/employee/dashboard">Espace employé</a>
       <a class="btn btn-outline-secondary" href="/user/dashboard">Espace administrateur</a>
       <a class="btn btn-outline-secondary" href="/logout">Déconnexion</a>
     </div>
   </div>
 
-  <!-- KPIs -->
+  <!-- KPI rapides (cartes) -->
   <div class="row g-3">
     <div class="col-md-2"><div class="card shadow-sm"><div class="card-body">
       <h6 class="text-muted mb-1">Utilisateurs actifs</h6>
@@ -49,7 +69,9 @@ if (!function_exists('e')) { function e($s){ return htmlspecialchars((string)$s,
 
   <hr class="my-4">
 
+  <!-- Tableaux récap 14 jours : trajets / crédits -->
   <div class="row g-3">
+    <!-- Covoiturages par jour -->
     <div class="col-md-6">
       <div class="card shadow-sm"><div class="card-body">
         <h5 class="card-title">Covoiturages par jour (14j)</h5>
@@ -71,6 +93,7 @@ if (!function_exists('e')) { function e($s){ return htmlspecialchars((string)$s,
       </div></div>
     </div>
 
+    <!-- Crédits par jour -->
     <div class="col-md-6">
       <div class="card shadow-sm"><div class="card-body">
         <h5 class="card-title">Crédits gagnés / jour (14j)</h5>
@@ -90,14 +113,13 @@ if (!function_exists('e')) { function e($s){ return htmlspecialchars((string)$s,
     </div>
   </div>
 
-  <!--  -->
-  <!--Historique-->
-  
+  <!-- Graphique interactif (Chart.js) : historique des crédits plateforme -->
   <hr class="my-4">
   <section class="card shadow-sm mb-4">
     <div class="card-body">
       <div class="d-flex justify-content-between align-items-center mb-3">
         <h5 class="card-title mb-0">Historique des crédits (plateforme)</h5>
+        <!-- Sélecteur de plage : j'appelle l'API côté admin pour recharger la série -->
         <div class="d-flex gap-2 align-items-center">
           <label for="histDays" class="form-label mb-0 me-2 small text-muted">Plage</label>
           <select id="histDays" class="form-select form-select-sm">
@@ -118,10 +140,11 @@ if (!function_exists('e')) { function e($s){ return htmlspecialchars((string)$s,
   <hr class="my-4">
 
   <div class="row g-3">
-    <!-- Création d'un employé -->
+    <!-- Formulaire : création d'un employé -->
     <div class="col-lg-4">
       <div class="card shadow-sm"><div class="card-body">
         <h5 class="card-title">Créer un compte employé</h5>
+        <!-- POST sécurisé par CSRF (le token vient du contrôleur) -->
         <form method="post" action="/admin/employees/create" class="vstack gap-2">
           <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
           <input class="form-control" name="nom" placeholder="Nom (optionnel)">
@@ -133,7 +156,7 @@ if (!function_exists('e')) { function e($s){ return htmlspecialchars((string)$s,
       </div></div>
     </div>
 
-    <!-- Gestion comptes -->
+    <!-- Gestion des comptes (liste + actions suspendre/réactiver) -->
     <div class="col-lg-8">
       <div class="card shadow-sm"><div class="card-body">
         <h5 class="card-title">Gérer les comptes</h5>
@@ -160,12 +183,14 @@ if (!function_exists('e')) { function e($s){ return htmlspecialchars((string)$s,
                 </td>
                 <td class="d-flex gap-1">
                   <?php if (!empty($u['is_suspended'])): ?>
+                    <!-- Réactivation : POST + CSRF -->
                     <form method="post" action="/admin/users/unsuspend">
                       <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
                       <input type="hidden" name="id" value="<?= e($u['id']) ?>">
                       <button class="btn btn-sm btn-success">Réactiver</button>
                     </form>
                   <?php else: ?>
+                    <!-- Suspension : POST + CSRF -->
                     <form method="post" action="/admin/users/suspend">
                       <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
                       <input type="hidden" name="id" value="<?= e($u['id']) ?>">
@@ -185,7 +210,7 @@ if (!function_exists('e')) { function e($s){ return htmlspecialchars((string)$s,
   </div>
 </div>
 
-<!-- Chart.js en CDN -->
+<!-- Dépendance Chart.js (CDN). Je charge en 'defer' et j'initialise une fois le DOM prêt. -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
@@ -193,21 +218,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const $canvas = document.getElementById('creditsHistoryChart');
   let chart;
 
-  /* Formateur FR: 'YYYY-MM-DD' -> 'DD/MM/YYYY' */
+  /* Petit formateur FR : 'YYYY-MM-DD' -> 'DD/MM/YYYY' (affichage axes/tooltip) */
   const fmtFR = (ymd) => {
     if (!ymd) return '';
     const [y, m, d] = String(ymd).split('-');
     return `${d}/${m}/${y}`;
   };
 
+  /* Récupère la série depuis l’API admin (JSON) et (re)dessine le graphique */
   async function loadData(days){
     const res  = await fetch(`/admin/api/credits-history?days=${encodeURIComponent(days)}`, { credentials: 'same-origin' });
     const json = await res.json();
-    /*labels & série */
+
+    // labels = jours ; credits = série ; rideIds = info complémentaire pour tooltip
     const labels  = json.data.map(r => r.day || r.jour);
     const credits = json.data.map(r => r.credits);
-
-    /* Tooltips incluent les ride_ids */
     const rideIds = json.data.map(r => r.ride_ids || '');
 
     if (chart) chart.destroy();
@@ -231,18 +256,23 @@ document.addEventListener('DOMContentLoaded', () => {
             title: { display: true, text: 'Jour' },
             ticks: {
               callback: function(value) {
-                const raw = this.getLabelForValue(value); // 'YYYY-MM-DD'
+                const raw = this.getLabelForValue(value); // ex: '2025-09-28'
                 return fmtFR(raw);
               }
             }
           },
-          y: { title: { display: true, text: 'Crédits' }, beginAtZero: true, ticks: { precision: 0 } }
+          y: { 
+            title: { display: true, text: 'Crédits' }, 
+            beginAtZero: true, 
+            ticks: { precision: 0 } 
+          }
         },
         plugins: {
           tooltip: {
             callbacks: {
               title: (items) => items.length ? fmtFR(items[0].label) : '',
               afterBody: (items) => {
+                // J’affiche les ride_ids dans le tooltip pour traçabilité
                 const i = items[0].dataIndex;
                 const ids = rideIds[i];
                 return ids ? `ride_id: ${ids}` : 'Aucun trajet ce jour';
@@ -255,7 +285,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Rafraîchissement à la volée quand je change la plage
   $sel.addEventListener('change', () => loadData($sel.value));
+  // Chargement initial (valeur par défaut sélectionnée)
   loadData($sel.value);
 });
 </script>

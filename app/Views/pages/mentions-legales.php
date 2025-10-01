@@ -1,21 +1,31 @@
 <?php
 /* app/Views/pages/legal.php
-   Vue injectée dans layouts/base.php (MVC)
-   Mention légales complètes – EcoRide (infos fictives)
+   Vue MVC injectée dans layouts/base.php.
+   Cette page contient les mentions légales complètes de la plateforme EcoRide (texte fictif).
 */
+
+/* Je définis le titre de la page (utilisé dans le layout).
+   Si aucune valeur n’est passée par le contrôleur, je mets un titre par défaut. */
 $title = $title ?? 'Mentions légales – EcoRide';
+
+/* Je prépare aussi la meta description pour le SEO.
+   Si rien n’est défini, j’ajoute une valeur par défaut. */
 $meta  = $meta  ?? [
   'description' => "Mentions légales de la plateforme de covoiturage écologique EcoRide (informations fictives)."
 ];
 
+/* Helper d’échappement :
+   J’utilise htmlspecialchars pour protéger mes sorties et éviter les injections HTML/JS. */
 if (!function_exists('h')) {
   function h($v){ return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
 }
 ?>
 
 <div class="container py-4">
+  <!-- Titre principal -->
   <h1 class="h3 mb-4">Mentions légales</h1>
 
+  <!-- Section 1 : Informations générales -->
   <section class="mb-4">
     <h2 class="h5">1. Informations légales</h2>
     <ul class="mb-0">
@@ -27,6 +37,7 @@ if (!function_exists('h')) {
     </ul>
   </section>
 
+  <!-- Section 2 : Hébergeur -->
   <section class="mb-4">
     <h2 class="h5">2. Hébergeur</h2>
     <p class="mb-0">
@@ -37,6 +48,7 @@ if (!function_exists('h')) {
     </p>
   </section>
 
+  <!-- Section 3 : Propriété intellectuelle -->
   <section class="mb-4">
     <h2 class="h5">3. Propriété intellectuelle</h2>
     <p class="mb-0">
@@ -47,6 +59,7 @@ if (!function_exists('h')) {
     </p>
   </section>
 
+  <!-- Section 4 : Données personnelles (RGPD) -->
   <section class="mb-4">
     <h2 class="h5">4. Données personnelles (RGPD)</h2>
     <p>
@@ -67,6 +80,7 @@ if (!function_exists('h')) {
     </p>
   </section>
 
+  <!-- Section 5 : Cookies -->
   <section class="mb-4">
     <h2 class="h5">5. Cookies</h2>
     <p class="mb-2">
@@ -80,6 +94,7 @@ if (!function_exists('h')) {
     </ul>
   </section>
 
+  <!-- Section 6 : Responsabilité -->
   <section class="mb-4">
     <h2 class="h5">6. Responsabilité</h2>
     <p class="mb-0">
@@ -90,6 +105,7 @@ if (!function_exists('h')) {
     </p>
   </section>
 
+  <!-- Section 7 : Loi applicable -->
   <section class="mb-4">
     <h2 class="h5">7. Loi applicable & juridiction compétente</h2>
     <p class="mb-0">
@@ -98,8 +114,8 @@ if (!function_exists('h')) {
     </p>
   </section>
 
+  <!-- Pied de page : j’indique clairement que le contenu est fictif pour un projet. -->
   <hr>
-
   <p class="text-muted mb-0 small">
     Document à caractère fictif destiné à un projet pédagogique.
   </p>

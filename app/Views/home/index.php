@@ -1,10 +1,19 @@
 <?php
 /* app/Views/home/index.php
- Cette vue est injectée dans le layout global via View::render() / BaseController::render().*/
+ * -------------------------
+ * Page d’accueil EcoRide.
+ * Cette vue est injectée dans le layout global via View::render() / BaseController::render().
+ *
+ * Objectifs :
+ * - Présenter EcoRide (texte + image)
+ * - Offrir un formulaire de recherche de covoiturages
+ * - Mettre en avant les atouts (confort, économies, écologie)
+ */
 
-$title = 'Accueil – EcoRide';
+$title = 'Accueil – EcoRide'; // Titre utilisé dans le <title> du layout
 ?>
 
+<!-- SECTION 1 : Présentation -->
 <section class="mb-5">
   <div class="row align-items-center g-4">
     <div class="col-lg-6">
@@ -21,6 +30,7 @@ $title = 'Accueil – EcoRide';
       </ul>
     </div>
     <div class="col-lg-6">
+      <!-- Image illustrative -->
       <img src="/assets/img/photo-home-page-1.jpg"
            class="img-fluid rounded shadow-sm"
            alt="Covoiturage écologique avec EcoRide">
@@ -28,27 +38,34 @@ $title = 'Accueil – EcoRide';
   </div>
 </section>
 
+<!-- SECTION 2 : Formulaire de recherche -->
 <section class="mb-4">
   <div class="card border-0 shadow-sm">
     <div class="card-body p-3 p-md-4">
       <h2 class="h5 mb-3">Rechercher un covoiturage</h2>
+      <!-- Formulaire principal de recherche -->
       <form action="/search" method="post" class="row g-3 align-items-end" novalidate>
+        <!-- Champ départ -->
         <div class="col-12 col-md-4">
           <label for="from_city" class="form-label">Départ</label>
           <input id="from_city" name="from_city" class="form-control" placeholder="Ville de départ" required>
         </div>
+        <!-- Champ arrivée -->
         <div class="col-12 col-md-4">
           <label for="to_city" class="form-label">Arrivée</label>
           <input id="to_city" name="to_city" class="form-control" placeholder="Ville d’arrivée" required>
         </div>
+        <!-- Champ date -->
         <div class="col-12 col-md-3">
           <label for="date_start" class="form-label">Date</label>
           <input id="date_start" type="date" name="date_start" class="form-control" required>
         </div>
+        <!-- Bouton rechercher -->
         <div class="col-12 col-md-1 d-grid">
           <button class="btn btn-success" type="submit">Rechercher</button>
         </div>
 
+        <!-- Option écologique -->
         <div class="col-12">
           <div class="form-check">
             <input class="form-check-input" type="checkbox" id="eco_only" name="eco_only" value="1">
@@ -60,9 +77,11 @@ $title = 'Accueil – EcoRide';
   </div>
 </section>
 
+<!-- SECTION 3 : Mise en avant arguments -->
 <section class="mt-5">
   <h2 class="h5 mb-3">Pourquoi choisir EcoRide ?</h2>
   <div class="row g-3">
+    <!-- Bloc 1 : Confort & sécurité -->
     <div class="col-md-4">
       <div class="card h-100 border-0 shadow-sm">
         <img src="/assets/img/photo-home-page-2.jpg" class="card-img-top" alt="Confort et sécurité en covoiturage">
@@ -72,6 +91,7 @@ $title = 'Accueil – EcoRide';
         </div>
       </div>
     </div>
+    <!-- Bloc 2 : Économies -->
     <div class="col-md-4">
       <div class="card h-100 border-0 shadow-sm">
         <img src="/assets/img/car-9717482_640.jpg" class="card-img-top" alt="Économies sur les trajets">
@@ -81,6 +101,7 @@ $title = 'Accueil – EcoRide';
         </div>
       </div>
     </div>
+    <!-- Bloc 3 : Écologie -->
     <div class="col-md-4">
       <div class="card h-100 border-0 shadow-sm">
         <img src="/assets/img/driver-8563415_640.jpg" class="card-img-top" alt="Trajets plus écologiques">

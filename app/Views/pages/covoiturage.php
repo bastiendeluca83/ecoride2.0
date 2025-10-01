@@ -1,12 +1,25 @@
 <?php
-/** @var array $rides_upcoming */
-/** @var array $rides_past_30d */
+/**
+ * Vue MVC — Covoiturages (à venir + passés 30j)
+ * Contexte : app/Views/rides/index.php (par exemple), injectée dans mon layout.
+ * Objectif : lister des trajets à venir sous forme de cartes scrollables et un historique sur 30 jours.
+ *
+ * Variables attendues :
+ * @var array $rides_upcoming   // trajets ouverts à la participation
+ * @var array $rides_past_30d   // trajets terminés sur les 30 derniers jours
+ */
 
-/* Helpers généraux  */
+/* ---- Helpers généraux ----
+   Je centralise ici mes petites fonctions d'affichage pour éviter de dupliquer du code
+   dans toutes mes vues. Je protège les sorties HTML et je formate les dates proprement.
+*/
 if (!function_exists('e')) {
+  // J'échappe toutes les sorties pour éviter les injections XSS.
   function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 }
+
 if (!function_exists('initials_from_name')) {
+  // Je génère des initiales quand je n'ai pas d'avatar (fallback visuel propre).
   function initials_from_name(string $name): string {
     $name = trim($name);
     if ($name === '') return 'U';
@@ -16,14 +29,18 @@ if (!function_exists('initials_from_name')) {
     return $first . ($second ?: '');
   }
 }
+
 if (!function_exists('fmt_date_short')) {
+  // Mon format court "jj/mm à HH:ii" (idéal en carte compacte).
   function fmt_date_short(?string $dt): string {
     if (!$dt) return '';
     $t = strtotime($dt);
     return $t ? date('d/m à H:i', $t) : '';
   }
 }
+
 if (!function_exists('fmt_duration')) {
+  // Je calcule une durée en minutes → h/min (ex : "1 h 25 min").
   function fmt_duration(?string $start, ?string $end): string {
     if (!$start || !$end) return '—';
     $s = strtotime($start); $e = strtotime($end);
@@ -35,7 +52,9 @@ if (!function_exists('fmt_duration')) {
     return "{$mn} min";
   }
 }
+
 if (!function_exists('ride_driver_name')) {
+  // Je tente plusieurs champs possibles ramenés par ma requête pour obtenir un nom propre.
   function ride_driver_name(array $r): string {
     $candidates = [
       $r['driver_display_name'] ?? null,
@@ -50,7 +69,9 @@ if (!function_exists('ride_driver_name')) {
     return 'Conducteur';
   }
 }
+
 if (!function_exists('ride_driver_avatar')) {
+  // Idem pour l’avatar : je balaye les clés possibles et je retourne la première trouvée.
   function ride_driver_avatar(array $r): ?string {
     foreach (['driver_avatar','driver_avatar_path','avatar_path','user_avatar','photo'] as $k) {
       if (!empty($r[$k])) return (string)$r[$k];
@@ -58,10 +79,12 @@ if (!function_exists('ride_driver_avatar')) {
     return null;
   }
 }
+
 if (!function_exists('ride_prefs_from_row')) {
+  // Je normalise la structure des préférences (smoker/animals/music/chatty/ac) en 0/1/2.
   function ride_prefs_from_row(array $r): array {
     if (!empty($r['prefs']) && is_array($r['prefs'])) return $r['prefs'];
-    /* champs ramenés par la requête du contrôleur*/
+    /* champs ramenés par la requête du contrôleur (noms variables tolérés) */
     return [
       'smoker'  => isset($r['smoker'])  ? (int)$r['smoker']  : (isset($r['pref_smoking']) ? (int)$r['pref_smoking'] : 0),
       'animals' => isset($r['animals']) ? (int)$r['animals'] : (isset($r['pref_pets'])    ? (int)$r['pref_pets']    : 0),
@@ -72,7 +95,9 @@ if (!function_exists('ride_prefs_from_row')) {
   }
 }
 
-/* MAPPINGS de préférences (0/1/2) */
+/* ---- Mappings texte/couleur pour les préférences ----
+   Je centralise ici l’affichage (texte + badge Bootstrap) pour rester cohérent partout.
+*/
 function pref_txt(string $k, int $v): string {
   $map = [
     'smoker'  => [0=>'N/A', 1=>'Non',         2=>'Oui'],
@@ -83,7 +108,9 @@ function pref_txt(string $k, int $v): string {
   ];
   return $map[$k][$v] ?? 'N/A';
 }
+
 function pref_badge(string $k, int $v): string {
+  // Je choisis des badges lisibles qui traduisent l’intention rapidement.
   if ($v === 0) return 'bg-secondary';
   if ($k === 'smoker')  return $v===1 ? 'bg-success' : 'bg-warning';
   if ($k === 'animals') return $v===2 ? 'bg-success' : 'bg-secondary';
@@ -93,40 +120,56 @@ function pref_badge(string $k, int $v): string {
   return 'bg-secondary';
 }
 
-/*  Données entrantes possibles */
+/* ---- Données injectées par le contrôleur ----
+   Je prévois plusieurs alias pour rester compatible si le contrôleur change les noms.
+*/
 $upcoming = $rides_upcoming ?? $ridesUpcoming ?? $rides ?? [];
 $past30   = $rides_past_30d ?? $ridesPast30 ?? $rides_past ?? [];
 $isLogged = !empty($_SESSION['user']['id']);
 
-/* partial note */
+/* ---- Inclusion partielle pour l’affichage compact de la note ----
+   Je déporte le rendu badge de note dans un partial réutilisable.
+*/
 $ratingPartial = __DIR__ . '/../partials/_rating_badge.php';
 ?>
 
+<!--
+  Structure de page :
+  - Header de section (titre + CTA "Rechercher")
+  - Liste horizontale des trajets à venir (scrollable)
+  - Grille des trajets passés (30 jours)
+  Je reste full Bootstrap pour respecter mon guideline front et la cohérence site.
+-->
 <div class="container-fluid px-4 py-5" style="background:linear-gradient(135deg,#f8f9fa 0%,#eef1f4 100%);min-height:100vh;">
   <div class="container">
 
+    <!-- En-tête section covoiturage -->
     <div class="d-flex align-items-center justify-content-between mb-4">
       <div>
         <h1 class="h2 fw-bold mb-1 text-dark">Covoiturage</h1>
         <p class="text-muted mb-0">Réservez un trajet ou consultez l’historique récent</p>
       </div>
+      <!-- CTA simple vers la recherche (respect de l’US : accès covoiturages) -->
       <a class="btn btn-outline-secondary btn-sm" href="<?= BASE_URL ?>rides">
         <i class="fas fa-search me-1"></i> Rechercher
       </a>
     </div>
 
-    <!-- À VENIR — SCROLLER HORIZONTAL -->
+    <!-- ====== À VENIR — liste scrollable ====== -->
     <div class="card border-0 shadow rounded-3 overflow-hidden mb-4">
+      <!-- Je garde un header coloré pour la hiérarchie visuelle -->
       <div class="card-header text-white" style="background:linear-gradient(135deg,#20bf6b 0%,#0fb9b1 100%);padding:1rem;">
         <h5 class="fw-bold mb-1"><i class="fas fa-calendar-plus me-2"></i>Covoiturages à venir</h5>
         <small class="opacity-85">Trajets ouverts à la participation</small>
       </div>
+
       <div class="card-body p-3">
         <?php if (!empty($upcoming)): ?>
-          <!-- rangée non-wrap qui scroll -->
+          <!-- J’utilise flex-nowrap + overflow-auto pour un carrousel horizontal accessible -->
           <div class="row flex-nowrap overflow-auto g-3 pb-2" role="region" aria-label="Covoiturages à venir">
             <?php foreach ($upcoming as $ride): ?>
               <?php
+                // Je prépare toutes les infos nécessaires à l’affichage de la carte.
                 $driverName   = ride_driver_name($ride);
                 $driverAvatar = ride_driver_avatar($ride);
                 $brand  = trim((string)(($ride['brand'] ?? '') . ' ' . ($ride['model'] ?? '')));
@@ -142,10 +185,11 @@ $ratingPartial = __DIR__ . '/../partials/_rating_badge.php';
                 $avgBadge   = isset($ride['rating_avg'])   ? (float)$ride['rating_avg']   : null;
                 $countBadge = isset($ride['rating_count']) ? (int)$ride['rating_count']   : 0;
               ?>
-              <!-- largeurs responsives pour des cartes “larges” -->
+              <!-- Largeurs responsives pour une carte confortable sur mobile et desktop -->
               <div class="col-10 col-sm-8 col-md-6 col-lg-5 col-xl-4">
                 <div class="card h-100 border rounded-3 shadow-sm bg-white">
-                  <!-- En-tête conducteur -->
+
+                  <!-- En-tête conducteur (avatar + nom + note + véhicule) -->
                   <div class="p-3 border-bottom d-flex align-items-center">
                     <?php if ($driverAvatar): ?>
                       <a href="<?= e($profileUrl) ?>" class="me-3" title="Voir le profil">
@@ -153,6 +197,7 @@ $ratingPartial = __DIR__ . '/../partials/_rating_badge.php';
                              class="rounded-circle border" width="72" height="72" style="object-fit:cover;">
                       </a>
                     <?php else: ?>
+                      <!-- Fallback initiales si pas d’avatar -->
                       <a href="<?= e($profileUrl) ?>" class="me-3 text-decoration-none" title="Voir le profil">
                         <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center border"
                              style="width:72px;height:72px;font-size:24px;">
@@ -160,6 +205,7 @@ $ratingPartial = __DIR__ . '/../partials/_rating_badge.php';
                         </div>
                       </a>
                     <?php endif; ?>
+
                     <div class="flex-grow-1">
                       <div class="fw-bold text-dark d-flex align-items-center gap-2 flex-wrap">
                         <?php if ($driverId > 0): ?>
@@ -169,7 +215,8 @@ $ratingPartial = __DIR__ . '/../partials/_rating_badge.php';
                         <?php else: ?>
                           <span><?= e($driverName) ?></span>
                         <?php endif; ?>
-                        <!-- ⭐ Note cliquable -->
+
+                        <!-- Badge de note cliquable vers la page d’avis -->
                         <span>
                           <?php if ($avgBadge !== null && file_exists($ratingPartial)): ?>
                             <a href="<?= e($ratingsUrl) ?>" class="text-decoration-none" title="Voir les avis">
@@ -184,6 +231,8 @@ $ratingPartial = __DIR__ . '/../partials/_rating_badge.php';
                           <?php endif; ?>
                         </span>
                       </div>
+
+                      <!-- Infos véhicule (marque/modèle/énergie) si disponibles -->
                       <div class="small text-muted">
                         <?php if ($brand !== ''): ?>
                           <i class="fas fa-car-side me-1"></i><?= e($brand) ?>
@@ -193,11 +242,14 @@ $ratingPartial = __DIR__ . '/../partials/_rating_badge.php';
                         <?php endif; ?>
                       </div>
                     </div>
+
+                    <!-- Places restantes en badge -->
                     <span class="badge bg-primary rounded-pill"><?= $seats ?> place<?= $seats>1?'s':'' ?></span>
                   </div>
 
-                  <!-- Corps trajet -->
+                  <!-- Corps de carte : villes, horaires, prix, préférences, action -->
                   <div class="p-3">
+                    <!-- Itinéraire -->
                     <div class="mb-2">
                       <div class="d-flex align-items-center">
                         <i class="fas fa-map-marker-alt text-primary me-2"></i>
@@ -210,6 +262,7 @@ $ratingPartial = __DIR__ . '/../partials/_rating_badge.php';
                       </div>
                     </div>
 
+                    <!-- Horaire + durée -->
                     <div class="row g-2 mb-2">
                       <div class="col-6">
                         <small class="text-muted d-block">Départ</small>
@@ -225,6 +278,7 @@ $ratingPartial = __DIR__ . '/../partials/_rating_badge.php';
                       </div>
                     </div>
 
+                    <!-- Prix + places -->
                     <div class="d-flex align-items-center justify-content-between mb-2">
                       <div class="fw-bold">
                         <i class="fas fa-coins text-warning me-1"></i><?= $price ?> cr.
@@ -234,7 +288,8 @@ $ratingPartial = __DIR__ . '/../partials/_rating_badge.php';
                       </div>
                     </div>
 
-                    <!-- Préférences CONDUCTEUR (connectées BDD) -->
+                    <!-- Préférences conducteur :
+                         je convertis mes entiers en texte + badge lisible (cf. pref_txt/pref_badge). -->
                     <div class="mb-2">
                       <small class="text-muted d-block mb-1">Préférences du conducteur</small>
                       <?php
@@ -263,11 +318,11 @@ $ratingPartial = __DIR__ . '/../partials/_rating_badge.php';
                       </div>
                     </div>
 
-                    <!-- Participer -->
+                    <!-- Action : Participer (avec CSRF et ride_id) / sinon login -->
                     <div class="mt-3">
                       <?php if ($isLogged): ?>
                         <form method="post" action="<?= BASE_URL ?>rides/book" class="d-grid">
-                          <?= \App\Security\Security::csrfField(); ?>
+                          <?= \App\Security\Security::csrfField(); /* Je protège le POST */ ?>
                           <input type="hidden" name="ride_id" value="<?= (int)($ride['id'] ?? 0) ?>">
                           <button class="btn btn-success fw-semibold">
                             <i class="fas fa-handshake me-1"></i> Participer
@@ -285,6 +340,7 @@ $ratingPartial = __DIR__ . '/../partials/_rating_badge.php';
             <?php endforeach; ?>
           </div>
         <?php else: ?>
+          <!-- État vide soigné -->
           <div class="text-center py-4">
             <i class="fas fa-calendar-times fa-3x text-muted mb-2"></i>
             <h6 class="text-muted mb-2">Aucun covoiturage à venir</h6>
@@ -294,17 +350,19 @@ $ratingPartial = __DIR__ . '/../partials/_rating_badge.php';
       </div>
     </div>
 
-    <!-- PASSÉS (30 jours) -->
+    <!-- ====== PASSÉS (30 jours) ====== -->
     <div class="card border-0 shadow rounded-3 overflow-hidden">
       <div class="card-header text-white" style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);padding:1rem;">
         <h5 class="fw-bold mb-1"><i class="fas fa-history me-2"></i>Covoiturages passés (30 jours)</h5>
         <small class="opacity-85">Historique récent</small>
       </div>
+
       <div class="card-body p-3">
         <?php if (!empty($past30)): ?>
           <div class="row g-3">
             <?php foreach ($past30 as $ride): ?>
               <?php
+                // Je récupère à nouveau les infos minimales pour l’historique.
                 $driverName   = ride_driver_name($ride);
                 $driverAvatar = ride_driver_avatar($ride);
 
@@ -331,6 +389,7 @@ $ratingPartial = __DIR__ . '/../partials/_rating_badge.php';
                         </div>
                       </a>
                     <?php endif; ?>
+
                     <div>
                       <div class="fw-bold text-dark d-flex align-items-center gap-2 flex-wrap">
                         <?php if ($driverId > 0): ?>
@@ -340,7 +399,8 @@ $ratingPartial = __DIR__ . '/../partials/_rating_badge.php';
                         <?php else: ?>
                           <span><?= e($driverName) ?></span>
                         <?php endif; ?>
-                        <!-- ⭐ Note cliquable -->
+
+                        <!-- Note cliquable si dispo -->
                         <span>
                           <?php if ($avgBadge !== null && file_exists($ratingPartial)): ?>
                             <a href="<?= e($ratingsUrl) ?>" class="text-decoration-none" title="Voir les avis">
@@ -355,6 +415,8 @@ $ratingPartial = __DIR__ . '/../partials/_rating_badge.php';
                           <?php endif; ?>
                         </span>
                       </div>
+
+                      <!-- Résumé simple du trajet passé -->
                       <div class="small text-muted">
                         <?= e($ride['from_city'] ?? '') ?> → <?= e($ride['to_city'] ?? '') ?>
                       </div>
@@ -369,6 +431,7 @@ $ratingPartial = __DIR__ . '/../partials/_rating_badge.php';
             <?php endforeach; ?>
           </div>
         <?php else: ?>
+          <!-- État vide -->
           <div class="text-center py-4">
             <i class="fas fa-inbox fa-3x text-muted mb-2"></i>
             <h6 class="text-muted mb-2">Aucun trajet passé sur les 30 derniers jours</h6>

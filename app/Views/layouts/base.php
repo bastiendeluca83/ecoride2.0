@@ -1,37 +1,47 @@
 <?php
-/* Layout global EcoRide (MVC) Emplacement : app/Views/layouts/base.php */
+/* app/Views/layouts/base.php
+ * ---------------------------
+ * Layout global de l’app (header, nav, modales, footer, scripts).
+ * Les vues l’injectent via View::render() / BaseController::render() en passant
+ * éventuellement $title, $meta, $pageStyles, $pageScripts, $bodyClass et $content.
+ */
+
 if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+    session_start(); // j’ai besoin de la session pour user, csrf, flashes, etc.
 }
 
+/* Valeurs par défaut (au cas où le contrôleur ne fournit rien) */
 $title       = $title       ?? 'EcoRide – Covoiturage écologique';
 $meta        = $meta        ?? [];
 $pageStyles  = $pageStyles  ?? '';
 $pageScripts = $pageScripts ?? '';
 $bodyClass   = $bodyClass   ?? '';
 
+/* Contexte utilisateur (affichage conditionnel dans le header) */
 $user    = $_SESSION['user'] ?? null;
 $role    = $user['role'] ?? null;
 $credits = isset($user['credits']) ? (int)$user['credits'] : null;
 
+/* CSRF global (utilisé dans les formulaires du header) */
 if (empty($_SESSION['csrf'])) {
     $_SESSION['csrf'] = bin2hex(random_bytes(32));
 }
 
+/* URL courante (utile pour redirect après login/logout) */
 $currentUrl = $_SERVER['REQUEST_URI'] ?? '/';
 
-/* Détections de sections */
+/* Détection de section pour du micro-style/layout */
 $isCovoiturage  = (strpos($currentUrl ?? '/', '/covoiturage') === 0);
 $isMentions     = (strpos($currentUrl ?? '/', '/mentions-legales') === 0);
 
-/* Avatar */
+/* Avatar : j’accepte des chemins relatifs (stockés en DB) ou je génère un avatar par défaut */
 $avatarPath = $user['avatar_path'] ?? '';
 if ($avatarPath && $avatarPath[0] !== '/') {
     $avatarPath = '/'.$avatarPath;
 }
 $avatarUrl = $avatarPath ?: ("https://api.dicebear.com/9.x/initials/svg?seed=" . urlencode($user['nom'] ?? 'guest'));
 
-/* Modal auth error */
+/* Messages d’erreurs d’auth (pour la modale) véhiculés par query ?error= */
 $errorMessage = '';
 if (isset($_GET['error'])) {
     switch ($_GET['error']) {
@@ -41,21 +51,23 @@ if (isset($_GET['error'])) {
     }
 }
 
-/* Flash messages globaux */
+/* Flash messages : je les consomme ici puis je les enlève */
 $flashes = $_SESSION['flash'] ?? [];
 unset($_SESSION['flash']);
 
-/* Bannière 'profil incomplet' — désormais UNIQUEMENT pour USER */
+/* Bannière “profil incomplet” : uniquement pour le rôle USER (pas ADMIN/EMPLOYEE) */
 $profileBannerHtml = '';
-$showProfileBanner = ($role === 'USER'); // <-- condition centrale
+$showProfileBanner = ($role === 'USER'); // condition centrale
 
 if ($showProfileBanner) {
     try {
         if ($user && !empty($user['id'])) {
+            // Je rafraîchis les infos en session pour éviter d’afficher un vieux profil
             $fresh = \App\Models\User::findById((int)$user['id']);
             if ($fresh) {
                 $_SESSION['user'] = $user = array_merge($user, $fresh);
             }
+            // Le Model me renvoie si le profil est complet + la liste des champs manquants
             $check = \App\Models\User::isProfileComplete((int)$user['id']);
             if (!$check['complete']) {
                 $labels = [
@@ -65,6 +77,7 @@ if ($showProfileBanner) {
                 ];
                 $missing = array_map(fn($k)=>$labels[$k] ?? $k, $check['missing']);
                 $txt = "Complétez votre profil : ".htmlspecialchars(implode(', ', $missing)).".";
+                // Bannière Bootstrap simple avec CTA vers l’édition de profil
                 $profileBannerHtml = '
                 <div class="alert alert-warning border-0 rounded-0 mb-0 alert-dismissible fade show" role="alert">
                   <div class="container d-flex flex-wrap align-items-center gap-2">
@@ -77,10 +90,10 @@ if ($showProfileBanner) {
                 </div>';
             }
         }
-    } catch (\Throwable $e) { /* ignore */ }
+    } catch (\Throwable $e) { /* Je ne casse pas l’affichage si le check échoue */ }
 }
 
-/* Helpers d’échappement pour balises meta */
+/* Helper local pour échapper les meta/titres */
 $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
 ?>
 <!doctype html>
@@ -91,15 +104,15 @@ $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
 <title><?= $e($title) ?></title>
 
 <?php
-/* Description par défaut si non fournie */
+/* Meta par défaut (description) si non fournie par la page */
 if (empty($meta['description'])) {
     $meta['description'] = "EcoRide, plateforme de covoiturage écoresponsable.";
 }
-/* Meta robots spécifique pour la page Mentions légales (noindex) */
+/* Page “Mentions légales” : j’indique noindex pour éviter l’indexation */
 if ($isMentions && empty($meta['robots'])) {
     $meta['robots'] = 'noindex,follow';
 }
-/* Open Graph de base si non fournis */
+/* Open Graph basique : je complète si manquant */
 $ogDefaults = [
     'og:title'       => $title,
     'og:description' => $meta['description'] ?? '',
@@ -114,18 +127,20 @@ foreach ($ogDefaults as $k => $v) {
   <meta name="<?= $e($name) ?>" content="<?= $e($contentMeta) ?>">
 <?php endforeach; ?>
 
+<!-- Styles globaux -->
 <link rel="icon" type="image/png" href="/assets/img/favicon-emp.png">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
 <link rel="stylesheet" href="/assets/css/style.css">
 <link rel="stylesheet" href="/assets/css/app.css">
 <style>
-  .navbar .dropdown-menu { z-index: 2000; }
+  .navbar .dropdown-menu { z-index: 2000; } /* évite que le dropdown passe derrière la modale */
   .avatar{width:32px;height:32px;object-fit:cover;border-radius:50%;}
 </style>
-<?= $pageStyles ?>
+<?= $pageStyles /* hook pour des styles spécifiques à une page */ ?>
 </head>
 <body class="<?= $e($bodyClass) ?> bg-light d-flex flex-column min-vh-100">
+<!-- Barre de navigation (header global) -->
 <nav class="navbar navbar-expand-lg navbar-light" style="background-color:#18a558;">
   <div class="container">
     <a class="navbar-brand d-flex align-items-center text-white" href="/">
@@ -135,17 +150,23 @@ foreach ($ogDefaults as $k => $v) {
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Afficher le menu">
       <span class="navbar-toggler-icon"></span>
     </button>
+
     <div class="collapse navbar-collapse" id="mainNav">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
+        <!-- Lien Accueil (active quand on est sur /) -->
         <li class="nav-item">
           <a class="nav-link text-white<?= ($currentUrl === '/' ? ' active fw-semibold' : '') ?>" href="/">Accueil</a>
         </li>
+
+        <!-- Lien Covoiturage (active sur /covoiturage...) -->
         <li class="nav-item">
           <a class="nav-link text-white<?= ($isCovoiturage ? ' active fw-semibold' : '') ?>" href="<?= defined('BASE_URL') ? BASE_URL.'covoiturage' : '/covoiturage' ?>">
             <i class="fas fa-users me-1"></i> Covoiturage
           </a>
         </li>
-        <!-- Si tu veux afficher Mentions dans le menu principal, dé-commente ce bloc :
+
+        <!-- Mentions légales : je laisse en commentaire si on ne veut pas l’afficher -->
+        <!--
         <li class="nav-item">
           <a class="nav-link text-white<?= ($isMentions ? ' active fw-semibold' : '') ?>" href="/mentions-legales">
             Mentions légales
@@ -154,16 +175,20 @@ foreach ($ogDefaults as $k => $v) {
         -->
 
         <?php if (!$user): ?>
+          <!-- Utilisateur non connecté : bouton pour ouvrir la modale auth -->
           <li class="nav-item ms-lg-2">
             <button class="btn btn-light" data-bs-toggle="modal" data-bs-target="#authModal">Connexion</button>
           </li>
         <?php else: ?>
+          <!-- Utilisateur connecté : j’affiche des liens selon le rôle -->
           <?php if ($role === 'ADMIN'): ?>
             <li class="nav-item"><a class="nav-link text-white" href="/admin">Admin</a></li>
             <li class="nav-item"><a class="nav-link text-white" href="/employee">Modération</a></li>
           <?php elseif ($role === 'EMPLOYEE'): ?>
             <li class="nav-item"><a class="nav-link text-white" href="/employee">Employé</a></li>
           <?php endif; ?>
+
+          <!-- Menu utilisateur (avatar + crédits pour USER) -->
           <li class="nav-item dropdown ms-lg-3">
             <a class="nav-link dropdown-toggle d-flex align-items-center text-white" href="#" id="userMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
               <img src="<?= $e($avatarUrl) ?>" alt="avatar" class="avatar me-2">
@@ -185,6 +210,7 @@ foreach ($ogDefaults as $k => $v) {
                 <li><hr class="dropdown-divider"></li>
               <?php endif; ?>
               <li>
+                <!-- Déconnexion en POST + CSRF ; je renvoie sur la page courante -->
                 <form action="/logout" method="post" class="px-3">
                   <input type="hidden" name="csrf" value="<?= $e($_SESSION['csrf']) ?>">
                   <input type="hidden" name="redirect" value="<?= $e($currentUrl) ?>">
@@ -200,6 +226,7 @@ foreach ($ogDefaults as $k => $v) {
 </nav>
 
 <?php if (!$user): ?>
+<!-- Modale Auth : tabs Connexion / Inscription (utile pour onboard rapide) -->
 <div class="modal fade" id="authModal" tabindex="-1" aria-hidden="true" aria-labelledby="authTitle">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content border-0 rounded-4 shadow">
@@ -208,6 +235,7 @@ foreach ($ogDefaults as $k => $v) {
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
       </div>
 
+      <!-- Tablier des onglets -->
       <div class="px-3">
         <ul class="nav nav-pills gap-2 mb-3" id="authTabs" role="tablist">
           <li class="nav-item" role="presentation">
@@ -220,10 +248,12 @@ foreach ($ogDefaults as $k => $v) {
       </div>
 
       <div class="tab-content px-3 pb-3">
+        <!-- Si j’ai une erreur auth (via ?error=...), je l’affiche ici -->
         <?php if (!empty($errorMessage)): ?>
           <div class="alert alert-danger mb-3"><?= $e($errorMessage) ?></div>
         <?php endif; ?>
 
+        <!-- Onglet Connexion -->
         <div class="tab-pane fade show active" id="pane-login" role="tabpanel" aria-labelledby="tab-login">
           <form method="post" action="/login" class="needs-validation" novalidate>
             <input type="hidden" name="csrf" value="<?= $e($_SESSION['csrf']) ?>">
@@ -242,6 +272,7 @@ foreach ($ogDefaults as $k => $v) {
           </form>
         </div>
 
+        <!-- Onglet Inscription -->
         <div class="tab-pane fade" id="pane-signup" role="tabpanel" aria-labelledby="tab-signup">
           <form method="post" action="/signup" class="needs-validation" novalidate id="signupForm">
             <input type="hidden" name="csrf" value="<?= $e($_SESSION['csrf']) ?>">
@@ -289,6 +320,7 @@ foreach ($ogDefaults as $k => $v) {
 </div>
 <?php endif; ?>
 
+<!-- Ruban haut “branding” -->
 <div class="bg-success-subtle border-bottom border-success py-2">
   <div class="container d-flex align-items-center gap-3">
     <i class="fas fa-leaf text-success"></i>
@@ -297,8 +329,10 @@ foreach ($ogDefaults as $k => $v) {
   </div>
 </div>
 
+<!-- Bannière profil incomplet (si applicable) -->
 <?= $profileBannerHtml ?>
 
+<!-- Flash messages globaux (success/danger/warning/info) -->
 <div class="container mt-3">
 <?php if (!empty($flashes)): ?>
   <div class="mb-3">
@@ -322,6 +356,7 @@ foreach ($ogDefaults as $k => $v) {
 <?php endif; ?>
 </div>
 
+<!-- Contenu principal : soit pleine largeur pour /covoiturage, soit centré -->
 <main class="flex-grow-1 py-4">
   <?php if ($isCovoiturage): ?>
     <!-- Pleine largeur uniquement pour /covoiturage -->
@@ -338,6 +373,7 @@ foreach ($ogDefaults as $k => $v) {
   <?php endif; ?>
 </main>
 
+<!-- Footer simple (coordonnées & mentions) -->
 <footer class="mt-auto border-top bg-white">
   <div class="container py-3 d-flex flex-column flex-sm-row justify-content-between align-items-center">
     <div class="small text-muted">
@@ -353,10 +389,12 @@ foreach ($ogDefaults as $k => $v) {
   </div>
 </footer>
 
+<!-- JS Bootstrap + validation côté client pour les formulaires requis -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 <script>
 (() => {
   'use strict';
+  // Validation Bootstrap : je bloque la soumission si champs invalides
   document.querySelectorAll('.needs-validation').forEach(form => {
     form.addEventListener('submit', e => {
       if (!form.checkValidity()) {
@@ -365,6 +403,7 @@ foreach ($ogDefaults as $k => $v) {
       form.classList.add('was-validated');
     }, false);
   });
+  // Vérif live “password == confirm”
   const f = document.getElementById('signupForm');
   if (f) {
     const p1 = document.getElementById('snPass');
@@ -376,6 +415,6 @@ foreach ($ogDefaults as $k => $v) {
 })();
 </script>
 <script src="/assets/js/app.js"></script>
-<?= $pageScripts ?>
+<?= $pageScripts /* hook pour des scripts spécifiques à une page */ ?>
 </body>
 </html>

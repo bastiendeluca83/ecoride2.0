@@ -1,7 +1,10 @@
 <?php
 /**
- * Vue : Profil public conducteur
- * Variables fournies par PublicProfileController::show()
+ * Vue MVC — Profil public conducteur
+ * Contexte : rendue par PublicProfileController::show()
+ * Objectif : afficher l’identité du conducteur, ses préférences, ses véhicules et un aperçu de ses avis.
+ *
+ * Données attendues :
  * - array|null $driver
  * - array      $vehicles
  * - array      $prefs
@@ -11,9 +14,12 @@
  * - array      $reviews_recent (derniers avis approuvés)
  */
 
+/* Helper d’échappement : je protège tout ce qui s’affiche côté HTML. */
 if (!function_exists('e')) {
   function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 }
+
+/* Initiales fallback : je génère des initiales lisibles quand il n’y a pas d’avatar. */
 if (!function_exists('initials_from_name')) {
   function initials_from_name(string $name): string {
     $name = trim($name);
@@ -24,6 +30,8 @@ if (!function_exists('initials_from_name')) {
     return $first . ($second ?: '');
   }
 }
+
+/* Calcul d’âge : j’affiche un âge à partir d’une date YYYY-MM-DD si possible. */
 if (!function_exists('age_years')) {
   function age_years(?string $dateNaissance): ?int {
     $d = $dateNaissance ? trim($dateNaissance) : '';
@@ -36,7 +44,7 @@ if (!function_exists('age_years')) {
   }
 }
 
-/* Mappings préférences */
+/* Mappings préférences : j’uniformise texte et badges à partir des valeurs 0/1/2. */
 if (!function_exists('pref_txt')) {
   function pref_txt(string $k, int $v): string {
     $map = [
@@ -61,7 +69,7 @@ if (!function_exists('pref_badge')) {
   }
 }
 
-/* Récup valeurs sûres */
+/* Je normalise mes entrées pour éviter les notices si une variable manque. */
 $driver        = $driver ?? null;
 $vehicles      = is_array($vehicles ?? null) ? $vehicles : [];
 $prefs         = is_array($prefs ?? null) ? $prefs : [];
@@ -70,9 +78,10 @@ $count         = (int)($count ?? 0);
 $distribution  = $distribution ?? [5=>0,4=>0,3=>0,2=>0,1=>0];
 $reviewsRecent = is_array($reviews_recent ?? null) ? $reviews_recent : [];
 
+/* Partial pour l’affichage compact de la note (réutilisable). */
 $ratingInclude = __DIR__ . '/../partials/_rating_badge.php';
 
-/* Identité */
+/* Identité : je compose un nom d’affichage propre, avatar et infos complémentaires. */
 $fullName = trim((string)(($driver['prenom'] ?? '') . ' ' . ($driver['nom'] ?? '')));
 $display  = $fullName !== '' ? $fullName : (string)($driver['pseudo'] ?? 'Conducteur');
 $avatar   = (string)($driver['avatar_path'] ?? '');
@@ -81,13 +90,14 @@ $email    = (string)($driver['email'] ?? '');
 $phone    = (string)($driver['telephone'] ?? $driver['phone'] ?? '');
 $bio      = trim((string)($driver['bio'] ?? ''));
 
-/* Lien "voir tous les avis" (page publique par driver_id) */
+/* Lien “voir tous les avis” vers une page dédiée, basée sur l’id du conducteur. */
 $driverId   = (int)($driver['id'] ?? 0);
 $allRatings = BASE_URL . 'drivers/ratings?id=' . $driverId;
 ?>
 
 <div class="container my-4">
   <?php if (!$driver): ?>
+    <!-- Si le profil n’existe pas (id invalide), j’affiche un message simple + retour. -->
     <div class="alert alert-warning">Profil introuvable.</div>
     <a href="<?= BASE_URL ?>covoiturage" class="btn btn-outline-secondary">← Retour</a>
     <?php return; ?>
@@ -95,13 +105,14 @@ $allRatings = BASE_URL . 'drivers/ratings?id=' . $driverId;
 
   <a href="<?= BASE_URL ?>covoiturage" class="btn btn-outline-secondary btn-sm mb-3">← Retour</a>
 
-  <!-- En-tête profil -->
+  <!-- En-tête du profil : avatar, identité, contacts et badge de note -->
   <div class="card border-0 shadow-sm mb-4">
     <div class="card-body d-flex align-items-center gap-3">
       <?php if ($avatar !== ''): ?>
         <img src="<?= BASE_URL . e($avatar) ?>" alt="Avatar"
              class="rounded-circle border" width="92" height="92" style="object-fit:cover;">
       <?php else: ?>
+        <!-- Fallback initiales dans un rond si pas de photo -->
         <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center border"
              style="width:92px;height:92px;font-size:30px;">
           <?= e(initials_from_name($display)) ?>
@@ -122,7 +133,7 @@ $allRatings = BASE_URL . 'drivers/ratings?id=' . $driverId;
           <?php endif; ?>
         </div>
 
-        <!-- Note compacte à côté du nom -->
+        <!-- Badge note : je garde un lien vers la section #avis pour scroller. -->
         <div class="mt-2">
           <?php if ($avg !== null && file_exists($ratingInclude)): ?>
             <?php $small = true; $countTmp = $count; $avgTmp = (float)$avg; ?>
@@ -140,6 +151,7 @@ $allRatings = BASE_URL . 'drivers/ratings?id=' . $driverId;
       </div>
     </div>
 
+    <!-- Bio (si fournie) : je conserve les retours à la ligne de l’utilisateur. -->
     <?php if ($bio !== ''): ?>
       <div class="card-footer bg-white">
         <div><strong>À propos :</strong></div>
@@ -149,7 +161,7 @@ $allRatings = BASE_URL . 'drivers/ratings?id=' . $driverId;
   </div>
 
   <div class="row g-3">
-    <!-- Colonne gauche : préférences + véhicules -->
+    <!-- Colonne gauche : préférences conducteur + liste des véhicules -->
     <div class="col-lg-5">
       <!-- Préférences -->
       <div class="card border-0 shadow-sm mb-3">
@@ -221,7 +233,7 @@ $allRatings = BASE_URL . 'drivers/ratings?id=' . $driverId;
       </div>
     </div>
 
-    <!-- Colonne droite : Note & avis -->
+    <!-- Colonne droite : synthèse de la note + distribution + derniers avis -->
     <div class="col-lg-7" id="avis">
       <div class="card border-0 shadow-sm">
         <div class="card-header bg-white d-flex justify-content-between align-items-center">
@@ -229,7 +241,7 @@ $allRatings = BASE_URL . 'drivers/ratings?id=' . $driverId;
           <a href="<?= e($allRatings) ?>" class="btn btn-outline-primary btn-sm">Voir tous les avis</a>
         </div>
         <div class="card-body">
-          <!-- Badge de note -->
+          <!-- Badge de note globale (fallback si partial absent) -->
           <div class="mb-3">
             <?php if ($avg !== null && file_exists($ratingInclude)): ?>
               <?php $small=false; include $ratingInclude; ?>
@@ -240,7 +252,7 @@ $allRatings = BASE_URL . 'drivers/ratings?id=' . $driverId;
             <?php endif; ?>
           </div>
 
-          <!-- Distribution -->
+          <!-- Distribution 5→1 pour garder l’ordre “naturel” à l’écran -->
           <div class="row g-2 mb-3">
             <?php foreach ([5,4,3,2,1] as $n): ?>
               <div class="col-6 col-md-4">
@@ -252,7 +264,7 @@ $allRatings = BASE_URL . 'drivers/ratings?id=' . $driverId;
             <?php endforeach; ?>
           </div>
 
-          <!-- Derniers avis -->
+          <!-- Aperçu des derniers avis validés (commentaires multi-lignes conservés) -->
           <h6 class="mb-2">Derniers avis validés</h6>
           <?php if (!empty($reviewsRecent)): ?>
             <ul class="list-unstyled mb-0">

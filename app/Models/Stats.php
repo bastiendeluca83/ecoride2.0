@@ -4,21 +4,44 @@ namespace App\Models;
 use App\Db\Sql;
 use PDO;
 
+/**
+ * Classe Stats
+ * ------------
+ * Centralise toutes les requêtes "métriques" utiles pour les dashboards (admin / employé / utilisateur).
+ * - KPIs globaux (comptes, trajets, réservations, crédits de la plateforme…)
+ * - Agrégations par jour (trajets / crédits)
+ *
+ * NB : je garde le code très défensif (try/catch) pour éviter qu'un petit souci SQL
+ *      casse tout le tableau de bord : en cas d'erreur ponctuelle, on renvoie 0.
+ */
 final class Stats
 {
+    /** Raccourci : récupère l'instance PDO exposée par ma couche d'accès Sql */
     private static function pdo(): \PDO { return Sql::pdo(); }
 
+    /**
+     * KPIs globaux
+     * ------------
+     * Fournit un "super-set" de clés pour que la vue puisse piocher avec différents alias
+     * (FR/EN + snake/camel). Comme ça, j'évite d'avoir à toucher la vue si je change un libellé.
+     */
     public static function kpis(): array
     {
         $pdo = self::pdo();
 
-        /*Utilisateurs  */
+        /* -----------------------------
+           Utilisateurs (total)
+        ------------------------------ */
         $usersTotal = 0;
         try {
             $usersTotal = (int)$pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
-        } catch (\Throwable $e) {}
+        } catch (\Throwable $e) {
+            // Je garde silencieux : le dashboard doit rester affichable même si une requête tombe
+        }
 
-        /*Trajets à venir (tous) */
+        /* -----------------------------
+           Trajets à venir (tous statuts non filtrés ici)
+        ------------------------------ */
         $ridesUpcoming = 0;
         try {
             $ridesUpcoming = (int)$pdo->query("
@@ -26,7 +49,9 @@ final class Stats
             ")->fetchColumn();
         } catch (\Throwable $e) {}
 
-        /* Trajets disponibles à venir (seats_left > 0) */
+        /* -----------------------------
+           Trajets à venir avec places (seats_left > 0)
+        ------------------------------ */
         $ridesUpcomingAvailable = 0;
         try {
             $ridesUpcomingAvailable = (int)$pdo->query("
@@ -35,7 +60,9 @@ final class Stats
             ")->fetchColumn();
         } catch (\Throwable $e) {}
 
-        /* Réservations confirmées (total & à venir) */
+        /* -----------------------------
+           Réservations confirmées : total + à venir (via la date du trajet)
+        ------------------------------ */
         $bookingsTotal = 0;
         $bookingsUpcoming = 0;
         try {
@@ -43,6 +70,7 @@ final class Stats
                 SELECT COUNT(*) FROM bookings WHERE UPPER(status)='CONFIRMED'
             ")->fetchColumn();
         } catch (\Throwable $e) {}
+
         try {
             $st = $pdo->query("
                 SELECT COUNT(*)
@@ -54,7 +82,11 @@ final class Stats
             $bookingsUpcoming = (int)($st ? $st->fetchColumn() : 0);
         } catch (\Throwable $e) {}
 
-        /* Places restantes (somme seats_left) : à venir & global */
+        /* -----------------------------
+           Places restantes (somme des seats_left)
+           - à venir
+           - global (tous trajets)
+        ------------------------------ */
         $seatsLeftUpcoming = 0;
         $seatsLeftAll      = 0;
         try {
@@ -64,6 +96,7 @@ final class Stats
                 WHERE date_start >= NOW()
             ")->fetchColumn();
         } catch (\Throwable $e) {}
+
         try {
             $seatsLeftAll = (int)$pdo->query("
                 SELECT COALESCE(SUM(GREATEST(seats_left,0)),0)
@@ -71,7 +104,11 @@ final class Stats
             ")->fetchColumn();
         } catch (\Throwable $e) {}
 
-        /* Crédits plateforme total (transactions libellées commission) + fallback bookings*2 */
+        /* -----------------------------
+           Crédits gagnés par la plateforme (total)
+           - 1ère source : table transactions (libellé "plate-forme" ou "plateforme")
+           - fallback si 0 : 2 crédits * nb de réservations confirmées (hypothèse métier)
+        ------------------------------ */
         $platformCreditsTotal = 0;
         try {
             $q = $pdo->query("
@@ -85,11 +122,14 @@ final class Stats
             }
         } catch (\Throwable $e) {}
         if ($platformCreditsTotal === 0) {
-            /* fallback = 2 crédits par réservation confirmée (total) */
+            // Hypothèse commune EcoRide : 2 crédits par réservation confirmée
             $platformCreditsTotal = $bookingsTotal * 2;
         }
 
-        /* Super-set de clés (FR/EN + snake/camel + *_total / *_upcoming) */
+        /* -----------------------------
+           Je renvoie un set généreux de clés (FR/EN + snake/camel)
+           => ça me libère des contraintes de nommage côté vues.
+        ------------------------------ */
         return [
             /* Utilisateurs */
             'users'                 => $usersTotal,
@@ -160,9 +200,16 @@ final class Stats
         ];
     }
 
+    /**
+     * Nombre de trajets par jour sur une période [from; to]
+     * -----------------------------------------------------
+     * @param string $from  YYYY-MM-DD (inclus)
+     * @param string $to    YYYY-MM-DD (inclus)
+     * @return array  [{ jour: 'YYYY-MM-DD', day: 'YYYY-MM-DD', nombre: int, n: int }]
+     */
     public static function ridesPerDay(string $from, string $to): array
     {
-        /* Historique complet (on ne filtre pas les places) */
+        // Historique brut : je ne filtre pas par places restantes ici (c'est volontaire)
         $sql = "SELECT
                     DATE(date_start) AS jour,
                     DATE(date_start) AS day,
@@ -177,11 +224,19 @@ final class Stats
         return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    /**
+     * Crédits plateforme par jour
+     * ---------------------------
+     * Priorité à la table `transactions` (via libellé), sinon fallback logique :
+     * 2 crédits par réservation confirmée, groupé par jour de création.
+     *
+     * @return array [{ jour: 'YYYY-MM-DD', day: 'YYYY-MM-DD', credits: int }]
+     */
     public static function platformCreditsPerDay(string $from, string $to): array
     {
         $pdo = self::pdo();
 
-        /* 1) via transactions (commission plate-forme) */
+        // 1) Source officielle : transactions libellées "plate-forme/plateforme"
         try {
             $sql = "SELECT
                         DATE(created_at) AS jour,
@@ -196,10 +251,12 @@ final class Stats
             $st = $pdo->prepare($sql);
             $st->execute([':f'=>$from, ':t'=>$to]);
             $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
-            if ($rows) return $rows;
-        } catch (\Throwable $e) {}
+            if ($rows) return $rows; // si on a des données, je sors ici
+        } catch (\Throwable $e) {
+            // en cas d'erreur je bascule sur le fallback
+        }
 
-        /* 2) fallback : 2 * nb bookings confirmées par jour */
+        // 2) Fallback : 2 * nb de bookings confirmées (jour = date création de la résa)
         $sql = "SELECT
                     DATE(b.created_at) AS jour,
                     DATE(b.created_at) AS day,
@@ -214,7 +271,11 @@ final class Stats
         return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    /* (Resté pour compatibilité éventuelle) */
+    /**
+     * Somme globale des places restantes (tous trajets confondus)
+     * -----------------------------------------------------------
+     * Méthode conservée pour compat éventuelle.
+     */
     public static function totalPlatformPlace(): int
     {
         $pdo = self::pdo();

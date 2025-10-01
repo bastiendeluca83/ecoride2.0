@@ -1,4 +1,15 @@
 <?php 
+/**
+ * app/Views/user/dashboard.php (vue)
+ * ----------------------------------
+ * Tableau de bord utilisateur : résumé profil, stats, mes réservations à venir,
+ * et mes trajets en tant que conducteur.
+ *
+ * Rappel MVC :
+ * - Ici je ne fais QUE de l’affichage (pas de requêtes).
+ * - Toutes les données viennent du contrôleur.
+ */
+
 /** @var array $user */
 /** @var array $reservations */
 /** @var array $rides */
@@ -8,10 +19,11 @@
 /** @var int $driver_rating_count */
 
 if (!function_exists('e')) {
+  // Helper d’échappement (XSS)
   function e($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 }
 
-/* Calcule l'âge (années pleines) */
+/* Petit utilitaire : calcule l'âge (années pleines) à partir d'une date YYYY-MM-DD */
 if (!function_exists('age_years')) {
   function age_years(?string $dateNaissance): ?int {
     $d = $dateNaissance ? trim($dateNaissance) : '';
@@ -21,16 +33,17 @@ if (!function_exists('age_years')) {
       $now = new \DateTime('today');
       return $dob->diff($now)->y;
     } catch (\Throwable $e) {
-      return null;
+      return null; // si la date est mal formée, je reste silencieux côté vue
     }
   }
 }
 
+/* Données de profil : date de naissance (formatée FR) + âge */
 $dobRaw = $user['date_naissance'] ?? null;
 $dobTxt = $dobRaw ? date('d/m/Y', strtotime($dobRaw)) : null;
 $age = age_years($dobRaw);
 
-/* helper initials si pas d'avatar */
+/* Initiales fallback si pas d'avatar (petit confort visuel) */
 if (!function_exists('initials_from_name')) {
   function initials_from_name(string $name): string {
     $name = trim($name);
@@ -42,9 +55,10 @@ if (!function_exists('initials_from_name')) {
   }
 }
 
+/* Valeurs par défaut pour éviter les notices si le contrôleur n'a pas tout rempli */
 $stats = $stats ?? ['completed_total'=>0,'co2_total'=>0,'co2_per_trip'=>2.5];
 
-/* helper badge statut trajet conducteur */
+/* Badge de statut trajet (conducteur) → réutilisable dans la liste */
 if (!function_exists('ride_status_badge')) {
   function ride_status_badge(?string $status): string {
     $s = strtoupper(trim((string)$status));
@@ -58,23 +72,25 @@ if (!function_exists('ride_status_badge')) {
   }
 }
 
-/* include du badge de note réutilisable */
+/* Inclusion d’un badge de note réutilisable (si présent) */
 $ratingInclude = __DIR__ . '/../partials/_rating_badge.php';
 
-/* lien sécurisé vers la page Mes avis (token CSRF en query) */
+/* Lien sécurisé vers “Mes avis” : j’embarque un token CSRF en query pour filtrer côté contrôleur si besoin */
 $csrf = \App\Security\Security::csrfToken();
 $ratingsUrl = BASE_URL . 'user/ratings?t=' . urlencode($csrf);
 ?>
 
+<!-- Conteneur principal (fond doux + padding) -->
 <div class="container-fluid px-4 py-5" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); min-height: 100vh;">
   <div class="container">
 
+    <!-- En-tête : bienvenue + bouton logout -->
     <div class="d-flex align-items-center justify-content-between mb-5">
       <div>
         <h1 class="h2 mb-1 fw-bold text-dark">Bienvenue, <?= e($user['prenom'] ?? '') ?> <?= e($user['nom'] ?? 'Utilisateur') ?></h1>
         <p class="text-muted mb-0">Gérez vos trajets et votre profil EcoRide</p>
 
-        <!-- Petit rappel compact (optionnel) -->
+        <!-- Rappel compact de ma note conducteur (si dispo) -->
         <?php if (isset($driver_rating_avg) && $driver_rating_avg !== null): ?>
           <div class="mt-2">
             <span class="me-2 text-muted small">Ma note conducteur :</span>
@@ -82,7 +98,7 @@ $ratingsUrl = BASE_URL . 'user/ratings?t=' . urlencode($csrf);
               <?php
                 $avg = (float)$driver_rating_avg;
                 $count = (int)($driver_rating_count ?? 0);
-                $small = true;
+                $small = true; // je garde un rendu compact dans l’en-tête
                 include $ratingInclude;
               ?>
             <?php else: ?>
@@ -96,8 +112,9 @@ $ratingsUrl = BASE_URL . 'user/ratings?t=' . urlencode($csrf);
       </a>
     </div>
 
-    <!-- Statistiques (4 encarts) -->
+    <!-- 4 encarts de stats rapides -->
     <div class="row justify-content-center g-3 mb-5">
+      <!-- Mes crédits -->
       <div class="col-md-3">
         <div class="card border-0 shadow-lg text-white h-100" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
           <div class="card-body text-center p-3">
@@ -109,6 +126,7 @@ $ratingsUrl = BASE_URL . 'user/ratings?t=' . urlencode($csrf);
         </div>
       </div>
 
+      <!-- Trajets effectués -->
       <div class="col-md-3">
         <div class="card border-0 shadow-lg bg-white h-100">
           <div class="card-body text-center p-3">
@@ -120,6 +138,7 @@ $ratingsUrl = BASE_URL . 'user/ratings?t=' . urlencode($csrf);
         </div>
       </div>
 
+      <!-- Impact CO2 -->
       <div class="col-md-3">
         <div class="card border-0 shadow-lg bg-white h-100">
           <div class="card-body text-center p-3">
@@ -131,7 +150,7 @@ $ratingsUrl = BASE_URL . 'user/ratings?t=' . urlencode($csrf);
         </div>
       </div>
 
-      <!-- Encarts : MA NOTE -->
+      <!-- Ma note (cliquable vers la page des avis) -->
       <div class="col-md-3">
         <a href="<?= e($ratingsUrl) ?>" class="text-decoration-none">
           <div class="card border-0 shadow-lg bg-white h-100">
@@ -144,7 +163,7 @@ $ratingsUrl = BASE_URL . 'user/ratings?t=' . urlencode($csrf);
                     <?php
                       $avg = (float)$driver_rating_avg;
                       $count = (int)($driver_rating_count ?? 0);
-                      $small = false;
+                      $small = false; // cette fois je peux afficher la version “non compacte”
                       include $ratingInclude;
                     ?>
                   <?php else: ?>
@@ -159,11 +178,12 @@ $ratingsUrl = BASE_URL . 'user/ratings?t=' . urlencode($csrf);
           </div>
         </a>
       </div>
-      <!-- /encart Ma note -->
+      <!-- /Ma note -->
     </div>
 
-    <!-- Profil + Véhicule -->
+    <!-- Profil + Véhicules -->
     <div class="row justify-content-center mb-4">
+      <!-- Profil -->
       <div class="col-lg-6">
         <div class="card border-0 shadow rounded-3 overflow-hidden">
           <div class="card-header text-white position-relative" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 1.5rem;">
@@ -174,6 +194,7 @@ $ratingsUrl = BASE_URL . 'user/ratings?t=' . urlencode($csrf);
 
           <div class="card-body p-3">
             <div class="row g-2">
+              <!-- Nom / Prénom / Email / Téléphone / Adresse -->
               <div class="col-6">
                 <div class="p-2 rounded-3 border bg-white">
                   <div class="text-primary small mb-1 fw-semibold"><i class="fas fa-user me-1"></i>Nom</div>
@@ -220,6 +241,7 @@ $ratingsUrl = BASE_URL . 'user/ratings?t=' . urlencode($csrf);
               </div>
             </div>
 
+            <!-- CTA modifier profil -->
             <div class="mt-3">
               <a href="<?= BASE_URL ?>profil/edit" class="btn btn-success w-100 py-2 fw-semibold rounded-3 d-flex align-items-center justify-content-center">
                 <i class="fas fa-edit me-2"></i>Modifier
@@ -229,6 +251,7 @@ $ratingsUrl = BASE_URL . 'user/ratings?t=' . urlencode($csrf);
         </div>
       </div>
 
+      <!-- Mes véhicules (si fournis) -->
       <?php if (!empty($vehicles)): ?>
       <div class="col-lg-6">
         <div class="card border-0 shadow rounded-3 overflow-hidden">
@@ -271,7 +294,7 @@ $ratingsUrl = BASE_URL . 'user/ratings?t=' . urlencode($csrf);
       <?php endif; ?>
     </div>
 
-    <!-- Réservations -->
+    <!-- Mes réservations à venir (passager) -->
     <div class="card border-0 shadow mb-4 rounded-3 overflow-hidden">
       <div class="card-header text-white" style="background: linear-gradient(135deg, #20bf6b 0%, #0fb9b1 100%); padding: 1rem;">
         <h5 class="fw-bold mb-1"><i class="fas fa-calendar-check me-2"></i>Mes réservations</h5>
@@ -284,6 +307,7 @@ $ratingsUrl = BASE_URL . 'user/ratings?t=' . urlencode($csrf);
               <div class="col-md-6">
                 <div class="card h-100 border shadow-sm rounded-3 bg-white">
                   <div class="card-body p-3">
+                    <!-- Header carte : labels + badges crédits/CO2 -->
                     <div class="d-flex justify-content-between align-items-start mb-2">
                       <small class="fw-bold text-success mb-0"><i class="fas fa-route me-1"></i>Trajet</small>
                       <div class="d-flex align-items-center gap-1">
@@ -296,7 +320,7 @@ $ratingsUrl = BASE_URL . 'user/ratings?t=' . urlencode($csrf);
                       </div>
                     </div>
 
-                    <!-- conducteur -->
+                    <!-- Conducteur (avatar ou initiales) -->
                     <?php $d = $res['driver'] ?? null; ?>
                     <?php if ($d): ?>
                       <div class="d-flex align-items-center gap-2 mb-2">
@@ -318,6 +342,7 @@ $ratingsUrl = BASE_URL . 'user/ratings?t=' . urlencode($csrf);
                     <?php endif; ?>
                     <!-- /conducteur -->  
 
+                    <!-- Itinéraire -->
                     <div class="mb-2">
                       <div class="d-flex align-items-center mb-1">
                         <i class="fas fa-map-marker-alt text-primary me-1"></i>
@@ -330,6 +355,7 @@ $ratingsUrl = BASE_URL . 'user/ratings?t=' . urlencode($csrf);
                       </div>
                     </div>
 
+                    <!-- Horaires -->
                     <div class="mb-2">
                       <small class="text-muted">DÉPART</small>
                       <div class="small fw-bold text-dark">
@@ -348,6 +374,7 @@ $ratingsUrl = BASE_URL . 'user/ratings?t=' . urlencode($csrf);
                     </div>
                     <?php endif; ?>
 
+                    <!-- Action : annuler la résa -->
                     <a class="btn btn-outline-danger btn-sm w-100 rounded-3 fw-semibold"
                        href="<?= BASE_URL ?>user/ride/cancel?id=<?= (int)($res['id'] ?? 0) ?>">
                       <i class="fas fa-times me-1"></i>Annuler
@@ -358,6 +385,7 @@ $ratingsUrl = BASE_URL . 'user/ratings?t=' . urlencode($csrf);
             <?php endforeach; ?>
           </div>
         <?php else: ?>
+          <!-- État vide : je propose un call-to-action -->
           <div class="text-center py-4">
             <i class="fas fa-calendar-times fa-3x text-muted mb-2"></i>
             <h6 class="text-muted mb-2">Aucune réservation à venir</h6>
@@ -370,7 +398,7 @@ $ratingsUrl = BASE_URL . 'user/ratings?t=' . urlencode($csrf);
       </div>
     </div>
 
-    <!-- Trajets conducteur -->
+    <!-- Mes trajets conducteur -->
     <div class="card border-0 shadow rounded-3 overflow-hidden">
       <div class="card-header text-white" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 1rem;">
         <h5 class="fw-bold mb-1"><i class="fas fa-car me-2"></i>Mes trajets conducteur</h5>
@@ -381,23 +409,24 @@ $ratingsUrl = BASE_URL . 'user/ratings?t=' . urlencode($csrf);
           <div class="row g-2">
             <?php foreach ($rides as $ride): ?>
               <?php
+                // Participants (je limite l’affichage à 4 avatars + badge “+N”)
                 $participants = $ride['participants'] ?? [];
                 $maxShown = 4;
                 $shown = 0;
                 $more = max(0, count($participants) - $maxShown);
 
-                /* Statut et badges */
+                // Statut
                 $status = strtoupper((string)($ride['status'] ?? 'PREVU'));
               ?>
               <div class="col-lg-6">
                 <div class="card h-100 border shadow-sm rounded-3 bg-white">
                   <div class="card-body p-3">
+                    <!-- Bandeau haut : statut + places restantes + CO2 -->
                     <div class="d-flex justify-content-between align-items-start mb-2">
                       <div class="d-flex align-items-center gap-2">
                         <small class="fw-bold text-danger mb-0">
                           <i class="fas fa-steering-wheel me-1"></i>Mon trajet
                         </small>
-                        <!-- Badge de statut -->
                         <?= ride_status_badge($status); ?>
                       </div>
                       <div class="d-flex align-items-center gap-1">
@@ -410,6 +439,7 @@ $ratingsUrl = BASE_URL . 'user/ratings?t=' . urlencode($csrf);
                       </div>
                     </div>
 
+                    <!-- Départ → Arrivée -->
                     <div class="mb-2">
                       <div class="d-flex align-items-center mb-1">
                         <i class="fas fa-map-marker-alt text-primary me-1"></i>
@@ -422,6 +452,7 @@ $ratingsUrl = BASE_URL . 'user/ratings?t=' . urlencode($csrf);
                       </div>
                     </div>
 
+                    <!-- Horaires -->
                     <div class="mb-2">
                       <small class="text-muted">DÉPART</small>
                       <div class="small fw-bold text-dark">
@@ -440,6 +471,7 @@ $ratingsUrl = BASE_URL . 'user/ratings?t=' . urlencode($csrf);
                     </div>
                     <?php endif; ?>
 
+                    <!-- Participants (avatars + initiales) -->
                     <div class="mb-2">
                       <small class="text-muted d-block">Participants</small>
                       <?php if (!empty($participants)): ?>
@@ -510,6 +542,7 @@ $ratingsUrl = BASE_URL . 'user/ratings?t=' . urlencode($csrf);
                           </form>
                         </div>
                       <?php elseif ($status === 'FINISHED'): ?>
+                        <!-- Je conserve le bouton “Terminer” pour relancer l’envoi d’invitations si besoin -->
                         <div class="d-grid">
                           <form method="post" action="<?= BASE_URL ?>user/ride/end" class="m-0">
                             <?= \App\Security\Security::csrfField(); ?>
@@ -529,6 +562,7 @@ $ratingsUrl = BASE_URL . 'user/ratings?t=' . urlencode($csrf);
             <?php endforeach; ?>
           </div>
         <?php else: ?>
+          <!-- État vide -->
           <div class="text-center py-4">
             <i class="fas fa-car fa-3x text-muted mb-2"></i>
             <h6 class="text-muted mb-2">Aucun trajet publié</h6>
@@ -536,6 +570,7 @@ $ratingsUrl = BASE_URL . 'user/ratings?t=' . urlencode($csrf);
           </div>
         <?php endif; ?>
 
+        <!-- CTA publier un trajet -->
         <div class="text-center mt-3">
           <a class="btn btn-success px-3 py-2 rounded-pill fw-semibold btn-sm" href="<?= BASE_URL ?>user/ride/create">
             <i class="fas fa-plus me-1"></i>Publier un trajet

@@ -6,15 +6,26 @@ namespace App\Services;
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
+/**
+ * Classe Mailer
+ * -------------
+ * Service maison qui encapsule PHPMailer pour centraliser l’envoi d’e-mails.
+ * Elle prend en charge :
+ *   - La configuration SMTP (via app.php ou config par défaut)
+ *   - L’envoi de mails génériques (send)
+ *   - Des méthodes dédiées à notre métier (confirmation, publication, etc.)
+ */
 final class Mailer
 {
+    /** @var PHPMailer Instance utilisée pour envoyer tous les mails */
     private PHPMailer $m;
 
     public function __construct()
     {
-        // --- Chargement config (sans jamais throw) --------------------------
-        $rootApp = dirname(__DIR__);           // app/
-        $root    = dirname($rootApp);          // projet/
+        // ---------------- Chargement configuration ---------------------
+        // On essaye plusieurs emplacements possibles pour trouver app.php
+        $rootApp = dirname(__DIR__);           // répertoire app/
+        $root    = dirname($rootApp);          // racine du projet
         $try = [
             $rootApp . '/config/app.php',
             $rootApp . '/Config/app.php',
@@ -26,41 +37,42 @@ final class Mailer
         foreach ($try as $p) {
             if (is_file($p)) { $all = require $p; break; }
         }
+
         if (!is_array($all)) {
-            // Pas de throw => on log et on passe en config par défaut
+            // Si aucune config trouvée -> log + fallback valeurs vides
             error_log('[MAILER] Fichier config app.php introuvable');
             $all = [];
         }
         $cfg = $all['mail'] ?? [];
 
-        // --- PHPMailer (aucune sortie à l’écran) ----------------------------
+        // ---------------- Initialisation PHPMailer ---------------------
         $this->m = new PHPMailer(true);
 
-        // Ne JAMAIS envoyer de debug dans la réponse HTTP
-        $this->m->SMTPDebug   = 0;            // force OFF
-        $this->m->Debugoutput = 'error_log';  // au cas où quelqu’un réactive
+        // Toujours désactiver les messages debug dans la réponse HTTP
+        $this->m->SMTPDebug   = 0;
+        $this->m->Debugoutput = 'error_log';
 
         $this->m->isSMTP();
         $this->m->CharSet = 'UTF-8';
-        $this->m->isHTML(true);
+        $this->m->isHTML(true); // tous les mails en HTML par défaut
 
-        // Timeout court pour éviter que la requête s’éternise
+        // Timeout court pour éviter de bloquer la requête trop longtemps
         $this->m->Timeout  = (int)($cfg['timeout'] ?? 10);
         $this->m->Host     = (string)($cfg['host'] ?? 'localhost');
         $this->m->Port     = (int)($cfg['port'] ?? 25);
 
-        // From
+        // ---------------- Expéditeur (From) ---------------------
         $fromEmail = (string)($cfg['from_email'] ?? 'no-reply@ecoride.local');
         $fromName  = (string)($cfg['from_name']  ?? 'EcoRide');
         try {
             $this->m->setFrom($fromEmail, $fromName);
         } catch (\Throwable $e) {
-            // Si l’adresse est invalide, on log & on met un fallback
+            // Si jamais l’adresse est invalide -> on log et fallback générique
             error_log('[MAILER] setFrom invalide: '.$e->getMessage());
             $this->m->setFrom('no-reply@localhost', 'EcoRide');
         }
 
-        // Auth / chiffrement
+        // ---------------- Authentification SMTP ---------------------
         $username = (string)($cfg['username'] ?? '');
         $password = (string)($cfg['password'] ?? '');
         $enc      = strtolower(trim((string)($cfg['encryption'] ?? '')));
@@ -71,16 +83,16 @@ final class Mailer
             $this->m->Password = $password;
         }
 
-        // PHPMailer attend '' | ENCRYPTION_STARTTLS | ENCRYPTION_SMTPS
+        // Choix du chiffrement (ssl, tls ou aucun)
         if ($enc === 'ssl') {
             $this->m->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
         } elseif ($enc === 'tls') {
             $this->m->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         } else {
-            $this->m->SMTPSecure = ''; // pas de booléen ici
+            $this->m->SMTPSecure = '';
         }
 
-        // Optionnel: autoriser self-signed en dev (si configuré)
+        // ---------------- Options SSL (dev) ---------------------
         if (!empty($cfg['allow_self_signed'])) {
             $this->m->SMTPOptions = [
                 'ssl' => [
@@ -92,6 +104,14 @@ final class Mailer
         }
     }
 
+    /**
+     * Méthode générique d’envoi d’e-mail
+     * - $toEmail : adresse du destinataire
+     * - $toName  : nom du destinataire
+     * - $subject : sujet
+     * - $html    : corps HTML
+     * - $textAlt : version texte brut (optionnelle)
+     */
     public function send(string $toEmail, string $toName, string $subject, string $html, string $textAlt = ''): bool
     {
         try {
@@ -111,8 +131,9 @@ final class Mailer
         }
     }
 
-    // ----------------- MESSAGES MÉTIER -----------------
+    /* ----------------- MÉTHODES MÉTIER ----------------- */
 
+    /** Mail envoyé au chauffeur quand son trajet est publié */
     public function sendRidePublished(array $driver, array $ride): bool
     {
         $subject = "Votre trajet a été publié ✅";
@@ -125,6 +146,7 @@ final class Mailer
         );
     }
 
+    /** Mail de confirmation pour le passager */
     public function sendBookingConfirmation(array $passenger, array $ride, array $driver): bool
     {
         $subject = "Confirmation de votre réservation 🚗";
@@ -137,6 +159,7 @@ final class Mailer
         );
     }
 
+    /** Mail envoyé au chauffeur quand un passager réserve son trajet */
     public function sendDriverNewReservation(array $driver, array $ride, array $passenger): bool
     {
         $subject = "Nouvelle réservation sur votre trajet ✉️";
@@ -149,6 +172,7 @@ final class Mailer
         );
     }
 
+    /** Invitation pour le passager à déposer un avis */
     public function sendReviewInvite(array $passenger, array $ride, array $driver, string $link): bool
     {
         $subject = "Votre avis sur le trajet “".($ride['from_city'] ?? '')." → ".($ride['to_city'] ?? '')."”";
@@ -168,6 +192,7 @@ final class Mailer
         );
     }
 
+    /** Mail de bienvenue lors de l’inscription */
     public function sendWelcome(array $user): bool
     {
         $subject = "Bienvenue sur EcoRide 👋";
@@ -180,6 +205,7 @@ final class Mailer
         );
     }
 
+    /** Mail de vérification d’adresse e-mail */
     public function sendVerifyEmail(array $user, string $link): bool
     {
         $subject = "Confirmez votre adresse e-mail";
@@ -192,8 +218,14 @@ final class Mailer
         );
     }
 
-    // ----------------- Rendu template e-mail -----------------
+    /* ----------------- Rendu des templates mails ----------------- */
 
+    /**
+     * Rendu d’un template d’e-mail
+     * - Cherche dans /Views/email
+     * - Injecte les variables fournies
+     * - Renvoie le HTML final
+     */
     private function render(string $template, array $vars): string
     {
         $base = dirname(__DIR__); // app/
@@ -211,11 +243,11 @@ final class Mailer
             return "<p style=\"font-family:Arial,sans-serif\">{$template}</p>";
         }
 
-        // helpers communs
+        // Inclusion des helpers communs aux mails (si présents)
         $helpers = $base . "/Views/email/_helpers.php";
         if (is_file($helpers)) { include_once $helpers; }
 
-        // Rendu isolé
+        // On isole l’exécution du template pour capturer le HTML
         try {
             extract($vars, EXTR_SKIP);
             ob_start();
