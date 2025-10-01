@@ -1,4 +1,6 @@
 <?php
+declare(strict_types=1);
+
 namespace App\Db;
 
 use PDO;
@@ -6,55 +8,126 @@ use PDOException;
 
 /**
  * Sql
- * - Petit wrapper pour exposer une instance PDO unique (lazy singleton).
- * - Je lis la config DB depuis config/app.php.
- * - Je construis le DSN proprement et j'applique quelques options PDO par défaut.
+ * - Fournit une instance PDO unique (lazy singleton).
+ * - Priorités de configuration :
+ *   1) JAWSDB_URL (Heroku JawsDB)
+ *   2) CLEARDB_DATABASE_URL (Heroku ClearDB)
+ *   3) DATABASE_URL de type mysql://user:pass@host/db (fallback générique)
+ *   4) Variables d'env classiques (DB_HOST, DB_NAME, DB_USER, DB_PASS, DB_CHARSET)
+ *   5) config/app.php (legacy local)
  *
- * Remarque:
- * - En cas d'échec de connexion, je renvoie un 500 et j'arrête l'exécution.
- *   (En prod, on pourra masquer le message exact ou logger côté serveur.)
+ * - Par défaut, charset utf8mb4 et timezone Europe/Paris.
  */
-class Sql {
-  /** Instance PDO mise en cache pour éviter de recréer la connexion */
-  private static ?PDO $pdo = null;
+final class Sql
+{
+    private static ?PDO $pdo = null;
 
-  /**
-   * Retourne l'instance PDO prête à l'emploi.
-   * - Initialise la connexion à la première demande.
-   * - Réutilise la même instance ensuite.
-   */
-  public static function pdo(): PDO {
-    // Lazy init: si déjà connectée, je renvoie directement l'instance.
-    if (self::$pdo === null) {
-      // Je récupère la config (host, name, charset, user, pass)
-      $config = require __DIR__ . '/../../config/app.php';
-
-      // Je construis le DSN MySQL (charset inclus pour éviter les soucis d'encodage)
-      $dsn = sprintf('mysql:host=%s;dbname=%s;charset=%s',
-        $config['db']['host'],
-        $config['db']['name'],
-        $config['db']['charset']
-      );
-
-      try {
-        // J'instancie PDO avec des options de base:
-        // - ERRMODE_EXCEPTION: je préfère gérer les erreurs via exceptions
-        // - FETCH_ASSOC par défaut: tableaux associatifs (lisibles en contrôleurs/vues)
-        self::$pdo = new PDO($dsn, $config['db']['user'], $config['db']['pass'], [
-          PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-          PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-          // Astuce (optionnel) : on peut aussi désactiver l'émulation si besoin
-          // PDO::ATTR_EMULATE_PREPARES => false,
-        ]);
-      } catch (PDOException $e) {
-        // Échec de connexion → je renvoie un 500 (backend only)
-        // (En prod, on évite d'afficher le message exact pour ne rien divulguer)
-        http_response_code(500);
-        exit('DB connection failed: ' . $e->getMessage());
-      }
+    /**
+     * Retourne une instance PDO prête à l'emploi (et reconnecte si besoin).
+     */
+    public static function pdo(): PDO
+    {
+        if (!self::$pdo) {
+            self::$pdo = self::connect();
+        } else {
+            // Ping léger : si la connexion a été coupée par le provider, on reconnecte
+            try {
+                self::$pdo->query('SELECT 1');
+            } catch (\Throwable $e) {
+                self::$pdo = self::connect();
+            }
+        }
+        return self::$pdo;
     }
 
-    // Je renvoie l’instance unique (réutilisable partout)
-    return self::$pdo;
-  }
+    /**
+     * Etablit une nouvelle connexion PDO en fonction de l'environnement.
+     */
+    private static function connect(): PDO
+    {
+        // 1) Heroku (JawsDB / ClearDB / DATABASE_URL)
+        $url = getenv('JAWSDB_URL') ?: (getenv('CLEARDB_DATABASE_URL') ?: getenv('DATABASE_URL'));
+
+        if ($url && str_starts_with($url, 'mysql://')) {
+            [$dsn, $user, $pass] = self::fromUrl($url);
+            return self::makePdo($dsn, $user, $pass);
+        }
+
+        // 2) Variables d'env classiques (Docker / .env)
+        $host    = getenv('DB_HOST') ?: '127.0.0.1';
+        $db      = getenv('DB_NAME') ?: 'ecoride';
+        $user    = getenv('DB_USER') ?: 'root';
+        $pass    = getenv('DB_PASS') ?: '';
+        $charset = getenv('DB_CHARSET') ?: 'utf8mb4';
+        $dsn     = "mysql:host={$host};dbname={$db};charset={$charset}";
+
+        // 3) Fallback fichier de config local (optionnel)
+        $confFile = dirname(__DIR__, 2) . '/config/app.php';
+        if (is_file($confFile)) {
+            $conf = require $confFile;
+            if (isset($conf['db']['host'], $conf['db']['name'])) {
+                $host    = $conf['db']['host']    ?: $host;
+                $db      = $conf['db']['name']    ?: $db;
+                $user    = $conf['db']['user']    ?? $user;
+                $pass    = $conf['db']['pass']    ?? $pass;
+                $charset = $conf['db']['charset'] ?? $charset;
+                $dsn     = "mysql:host={$host};dbname={$db};charset={$charset}";
+            }
+        }
+
+        return self::makePdo($dsn, $user, $pass);
+    }
+
+    /**
+     * Construit DSN, user, pass à partir d'une URL mysql://user:pass@host/db?...
+     */
+    private static function fromUrl(string $url): array
+    {
+        $parts = parse_url($url);
+        $host  = $parts['host'] ?? '127.0.0.1';
+        $user  = $parts['user'] ?? 'root';
+        $pass  = $parts['pass'] ?? '';
+        $db    = ltrim($parts['path'] ?? '/ecoride', '/');
+        $port  = isset($parts['port']) ? (int)$parts['port'] : 3306;
+
+        // utf8mb4 par défaut
+        $dsn = "mysql:host={$host};port={$port};dbname={$db};charset=utf8mb4";
+        return [$dsn, $user, $pass];
+    }
+
+    /**
+     * Crée l'instance PDO avec des options sécurisées et cohérentes.
+     */
+    private static function makePdo(string $dsn, string $user, string $pass): PDO
+    {
+        $options = [
+            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES   => false, // vrais prepared statements
+        ];
+
+        try {
+            $pdo = new PDO($dsn, $user, $pass, $options);
+
+            // Paramétrage session SQL : charset/collo, timezone (optionnel)
+            $tz = getenv('DB_TIMEZONE') ?: 'Europe/Paris';
+            $pdo->exec("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci");
+            $pdo->exec("SET time_zone = '" . addslashes(self::mysqlTz($tz)) . "'");
+
+            return $pdo;
+        } catch (PDOException $e) {
+            http_response_code(500);
+            // En prod, évite d'afficher le détail ; les logs applicatifs captureront le message.
+            exit('DB connection failed.');
+        }
+    }
+
+    /**
+     * Convertit un identifiant de timezone PHP en timezone MySQL utilisable.
+     * (MySQL accepte généralement la même valeur ; on garde la méthode au cas où)
+     */
+    private static function mysqlTz(string $tz): string
+    {
+        return $tz; // simple mapping par défaut
+    }
 }
