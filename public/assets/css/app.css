@@ -1,0 +1,11 @@
+/* ===== Footer (uniforme avec navbar) ===== */
+.footer-green {
+  background-color: #18a558; /* exactement le même vert que la navbar */
+}
+.footer-link {
+  color:#fff; text-decoration:none;
+}
+.footer-link:hover,
+.footer-link:focus {
+  text-decoration: underline;
+}

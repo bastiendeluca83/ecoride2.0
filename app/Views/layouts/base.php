@@ -62,12 +62,12 @@ $showProfileBanner = ($role === 'USER'); // condition centrale
 if ($showProfileBanner) {
     try {
         if ($user && !empty($user['id'])) {
-            // Je rafraîchis les infos en session pour éviter d’afficher un vieux profil
+            // je rafraîchis les infos en session pour éviter d’afficher un vieux profil
             $fresh = \App\Models\User::findById((int)$user['id']);
             if ($fresh) {
                 $_SESSION['user'] = $user = array_merge($user, $fresh);
             }
-            // Le Model me renvoie si le profil est complet + la liste des champs manquants
+            // le Model me renvoie si le profil est complet + la liste des champs manquants
             $check = \App\Models\User::isProfileComplete((int)$user['id']);
             if (!$check['complete']) {
                 $labels = [
@@ -77,7 +77,7 @@ if ($showProfileBanner) {
                 ];
                 $missing = array_map(fn($k)=>$labels[$k] ?? $k, $check['missing']);
                 $txt = "Complétez votre profil : ".htmlspecialchars(implode(', ', $missing)).".";
-                // Bannière Bootstrap simple avec CTA vers l’édition de profil
+                // petite bannière Bootstrap avec CTA vers l’édition de profil
                 $profileBannerHtml = '
                 <div class="alert alert-warning border-0 rounded-0 mb-0 alert-dismissible fade show" role="alert">
                   <div class="container d-flex flex-wrap align-items-center gap-2">
@@ -90,7 +90,7 @@ if ($showProfileBanner) {
                 </div>';
             }
         }
-    } catch (\Throwable $e) { /* Je ne casse pas l’affichage si le check échoue */ }
+    } catch (\Throwable $e) { /* je ne casse pas l’affichage si le check échoue */ }
 }
 
 /* Helper local pour échapper les meta/titres */
@@ -108,7 +108,7 @@ $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
 if (empty($meta['description'])) {
     $meta['description'] = "EcoRide, plateforme de covoiturage écoresponsable.";
 }
-/* Page “Mentions légales” : j’indique noindex pour éviter l’indexation */
+/* Page Mentions légales : je préfère noindex pour éviter l’indexation */
 if ($isMentions && empty($meta['robots'])) {
     $meta['robots'] = 'noindex,follow';
 }
@@ -134,8 +134,12 @@ foreach ($ogDefaults as $k => $v) {
 <link rel="stylesheet" href="/assets/css/style.css">
 <link rel="stylesheet" href="/assets/css/app.css">
 <style>
-  .navbar .dropdown-menu { z-index: 2000; } /* évite que le dropdown passe derrière la modale */
+  .navbar .dropdown-menu { z-index: 2000; } /* j’évite que le dropdown passe derrière la modale */
   .avatar{width:32px;height:32px;object-fit:cover;border-radius:50%;}
+  /* j’uniformise ici la couleur de la bande footer sur le même vert que la navbar */
+  .footer-green{ background-color:#18a558; }
+  .footer-link{ color:#fff; text-decoration:none; }
+  .footer-link:hover, .footer-link:focus{ text-decoration:underline; }
 </style>
 <?= $pageStyles /* hook pour des styles spécifiques à une page */ ?>
 </head>
@@ -153,26 +157,19 @@ foreach ($ogDefaults as $k => $v) {
 
     <div class="collapse navbar-collapse" id="mainNav">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
-        <!-- Lien Accueil (active quand on est sur /) -->
+        <!-- Accueil -->
         <li class="nav-item">
           <a class="nav-link text-white<?= ($currentUrl === '/' ? ' active fw-semibold' : '') ?>" href="/">Accueil</a>
         </li>
 
-        <!-- Lien Covoiturage (active sur /covoiturage...) -->
+        <!-- Covoiturage -->
         <li class="nav-item">
           <a class="nav-link text-white<?= ($isCovoiturage ? ' active fw-semibold' : '') ?>" href="<?= defined('BASE_URL') ? BASE_URL.'covoiturage' : '/covoiturage' ?>">
             <i class="fas fa-users me-1"></i> Covoiturage
           </a>
         </li>
 
-        <!-- Mentions légales : je laisse en commentaire si on ne veut pas l’afficher -->
-        <!--
-        <li class="nav-item">
-          <a class="nav-link text-white<?= ($isMentions ? ' active fw-semibold' : '') ?>" href="/mentions-legales">
-            Mentions légales
-          </a>
-        </li>
-        -->
+        <?php /* je retire “Contact” de la navbar : il doit rester uniquement dans le footer */ ?>
 
         <?php if (!$user): ?>
           <!-- Utilisateur non connecté : bouton pour ouvrir la modale auth -->
@@ -180,7 +177,7 @@ foreach ($ogDefaults as $k => $v) {
             <button class="btn btn-light" data-bs-toggle="modal" data-bs-target="#authModal">Connexion</button>
           </li>
         <?php else: ?>
-          <!-- Utilisateur connecté : j’affiche des liens selon le rôle -->
+          <!-- Utilisateur connecté : liens selon le rôle -->
           <?php if ($role === 'ADMIN'): ?>
             <li class="nav-item"><a class="nav-link text-white" href="/admin">Admin</a></li>
             <li class="nav-item"><a class="nav-link text-white" href="/employee">Modération</a></li>
@@ -188,7 +185,7 @@ foreach ($ogDefaults as $k => $v) {
             <li class="nav-item"><a class="nav-link text-white" href="/employee">Employé</a></li>
           <?php endif; ?>
 
-          <!-- Menu utilisateur (avatar + crédits pour USER) -->
+          <!-- Menu utilisateur -->
           <li class="nav-item dropdown ms-lg-3">
             <a class="nav-link dropdown-toggle d-flex align-items-center text-white" href="#" id="userMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
               <img src="<?= $e($avatarUrl) ?>" alt="avatar" class="avatar me-2">
@@ -226,7 +223,7 @@ foreach ($ogDefaults as $k => $v) {
 </nav>
 
 <?php if (!$user): ?>
-<!-- Modale Auth : tabs Connexion / Inscription (utile pour onboard rapide) -->
+<!-- Modale Auth : tabs Connexion / Inscription (onboard rapide) -->
 <div class="modal fade" id="authModal" tabindex="-1" aria-hidden="true" aria-labelledby="authTitle">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content border-0 rounded-4 shadow">
@@ -235,7 +232,6 @@ foreach ($ogDefaults as $k => $v) {
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
       </div>
 
-      <!-- Tablier des onglets -->
       <div class="px-3">
         <ul class="nav nav-pills gap-2 mb-3" id="authTabs" role="tablist">
           <li class="nav-item" role="presentation">
@@ -248,12 +244,11 @@ foreach ($ogDefaults as $k => $v) {
       </div>
 
       <div class="tab-content px-3 pb-3">
-        <!-- Si j’ai une erreur auth (via ?error=...), je l’affiche ici -->
         <?php if (!empty($errorMessage)): ?>
           <div class="alert alert-danger mb-3"><?= $e($errorMessage) ?></div>
         <?php endif; ?>
 
-        <!-- Onglet Connexion -->
+        <!-- Connexion -->
         <div class="tab-pane fade show active" id="pane-login" role="tabpanel" aria-labelledby="tab-login">
           <form method="post" action="/login" class="needs-validation" novalidate>
             <input type="hidden" name="csrf" value="<?= $e($_SESSION['csrf']) ?>">
@@ -272,7 +267,7 @@ foreach ($ogDefaults as $k => $v) {
           </form>
         </div>
 
-        <!-- Onglet Inscription -->
+        <!-- Inscription -->
         <div class="tab-pane fade" id="pane-signup" role="tabpanel" aria-labelledby="tab-signup">
           <form method="post" action="/signup" class="needs-validation" novalidate id="signupForm">
             <input type="hidden" name="csrf" value="<?= $e($_SESSION['csrf']) ?>">
@@ -356,7 +351,7 @@ foreach ($ogDefaults as $k => $v) {
 <?php endif; ?>
 </div>
 
-<!-- Contenu principal : soit pleine largeur pour /covoiturage, soit centré -->
+<!-- Contenu principal -->
 <main class="flex-grow-1 py-4">
   <?php if ($isCovoiturage): ?>
     <!-- Pleine largeur uniquement pour /covoiturage -->
@@ -373,18 +368,26 @@ foreach ($ogDefaults as $k => $v) {
   <?php endif; ?>
 </main>
 
-<!-- Footer simple (coordonnées & mentions) -->
-<footer class="mt-auto border-top bg-white">
-  <div class="container py-3 d-flex flex-column flex-sm-row justify-content-between align-items-center">
-    <div class="small text-muted">
-      © <?= date('Y') ?> EcoRide — Tous droits réservés
-    </div>
-    <div class="small">
-      <a href="mailto:contact@ecoride.com" class="text-decoration-none">
-        <i class="fas fa-envelope me-1"></i>ecoride.demo@gmail.com
-      </a>
-      <span class="text-muted mx-2">|</span>
-      <a href="/mentions-legales" class="text-decoration-none<?= $isMentions ? ' fw-semibold' : '' ?>">Mentions légales</a>
+<!-- Footer : une seule bande verte (même vert que la navbar), avec tout dedans -->
+<footer class="mt-auto">
+  <div class="footer-green text-white py-3">
+    <div class="container d-flex flex-column flex-lg-row align-items-center justify-content-between gap-3">
+      <!-- à gauche : liens légaux (et Contact qui reste ici uniquement) -->
+      <ul class="list-unstyled d-flex flex-wrap align-items-center gap-4 mb-0">
+        <li><a class="footer-link" href="/confidentialite">Politique de confidentialité</a></li>
+        <li><a class="footer-link<?= $isMentions ? ' fw-semibold' : '' ?>" href="/mentions-legales">Mentions légales</a></li>
+        <li><a class="footer-link" href="/cgu">CGU</a></li>
+        <li><a class="footer-link" href="/contact">Contact</a></li>
+      </ul>
+
+      <!-- au centre/droite : email + copyright (tout dans la même barre) -->
+      <div class="d-flex flex-wrap align-items-center gap-4 ms-lg-auto">
+        <div class="small">
+          <i class="fas fa-envelope me-1 opacity-75"></i>
+          <a class="footer-link" href="mailto:ecoride.demo@gmail.com">ecoride.demo@gmail.com</a>
+        </div>
+        <div class="small text-white-75">© <?= date('Y') ?> EcoRide. Tous droits réservés.</div>
+      </div>
     </div>
   </div>
 </footer>
@@ -394,7 +397,7 @@ foreach ($ogDefaults as $k => $v) {
 <script>
 (() => {
   'use strict';
-  // Validation Bootstrap : je bloque la soumission si champs invalides
+  // validation Bootstrap : je bloque la soumission si champs invalides
   document.querySelectorAll('.needs-validation').forEach(form => {
     form.addEventListener('submit', e => {
       if (!form.checkValidity()) {
@@ -403,7 +406,7 @@ foreach ($ogDefaults as $k => $v) {
       form.classList.add('was-validated');
     }, false);
   });
-  // Vérif live “password == confirm”
+  // vérif live “password == confirm”
   const f = document.getElementById('signupForm');
   if (f) {
     const p1 = document.getElementById('snPass');

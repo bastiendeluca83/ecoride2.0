@@ -768,6 +768,93 @@ final class GeneralController extends BaseController
         header('Location: ' . BASE_URL . 'user/dashboard'); exit;
     }
 
+    /* ===== CONTACT (public) : traitement du formulaire /send-contact ===== */
+    public function sendContact(): void
+    {
+        // j’accepte seulement le POST (les autres verbes retournent vers la page)
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            header('Location: /contact', true, 303);
+            return;
+        }
+
+        // CSRF obligatoire (je reste cohérent avec le reste du code)
+        if (!Security::checkCsrf($_POST['csrf'] ?? null)) {
+            $_SESSION['flash'][] = ['type'=>'danger','text'=>"Session expirée. Merci de réessayer."];
+            header('Location: /contact', true, 303);
+            return;
+        }
+
+        // Honeypot anti-bot (champ caché que l’humain ne remplit jamais)
+        $hp = trim((string)($_POST['website'] ?? ''));
+        if ($hp !== '') {
+            $_SESSION['flash'][] = ['type'=>'success','text'=>"Merci, votre message a bien été envoyé."]; // je fais semblant pour les bots
+            header('Location: /contact', true, 303);
+            return;
+        }
+
+        // Anti-flood : 1 envoi / 60s par session
+        $now  = time();
+        $last = (int)($_SESSION['last_contact_ts'] ?? 0);
+        if ($now - $last < 60) {
+            $_SESSION['flash'][] = ['type'=>'warning','text'=>"Doucement :) Vous avez déjà envoyé un message il y a moins d’une minute."];
+            header('Location: /contact', true, 303);
+            return;
+        }
+
+        // Je récupère et valide les champs
+        $name    = trim((string)($_POST['name'] ?? ''));
+        $email   = trim((string)($_POST['email'] ?? ''));
+        $message = trim((string)($_POST['message'] ?? ''));
+
+        $errors = [];
+        if ($name === '')                              $errors[] = "Le nom est requis.";
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL))$errors[] = "Email invalide.";
+        if (mb_strlen($message) < 10)                  $errors[] = "Votre message est trop court (10 caractères minimum).";
+
+        if ($errors) {
+            $_SESSION['flash'][] = ['type'=>'danger','text'=>implode('<br>', array_map('htmlspecialchars', $errors))];
+            header('Location: /contact', true, 303);
+            return;
+        }
+
+        // Je compose l'email (HTML simple + infos utiles)
+        $to      = 'ecoride.demo@gmail.com'; // 👉 change ici si tu as une adresse pro
+        $subject = 'Nouveau message de contact – EcoRide';
+        $ip      = $_SERVER['REMOTE_ADDR'] ?? 'n/a';
+
+        // je nettoie un peu pour éviter les tentatives d'injection d'entêtes
+        $safeName  = str_replace(["\r","\n"], ' ', $name);
+        $safeEmail = str_replace(["\r","\n"], ' ', $email);
+
+        $html = '
+            <h2>Nouveau message de contact</h2>
+            <p><strong>Nom :</strong> '.htmlspecialchars($safeName, ENT_QUOTES, 'UTF-8').'</p>
+            <p><strong>Email :</strong> '.htmlspecialchars($safeEmail, ENT_QUOTES, 'UTF-8').'</p>
+            <p><strong>IP :</strong> '.htmlspecialchars($ip, ENT_QUOTES, 'UTF-8').'</p>
+            <hr>
+            <p style="white-space:pre-wrap">'.nl2br(htmlspecialchars($message, ENT_QUOTES, "UTF-8")).'</p>
+        ';
+
+        $sent = false;
+        try {
+            // j’utilise le même service Mailer que le reste de l’app
+            $mailer = new Mailer();
+            $sent = $mailer->send($to, 'Support EcoRide', $subject, $html);
+        } catch (\Throwable $e) {
+            $sent = false;
+            error_log('[CONTACT] mail fail: '.$e->getMessage());
+        }
+
+        if ($sent) {
+            $_SESSION['last_contact_ts'] = $now;
+            $_SESSION['flash'][] = ['type'=>'success','text'=>"Merci, votre message a bien été envoyé."];
+        } else {
+            $_SESSION['flash'][] = ['type'=>'danger','text'=>"Oups… l’envoi a échoué. Réessayez plus tard ou écrivez directement à <strong>ecoride.demo@gmail.com</strong>."];
+        }
+
+        header('Location: /contact', true, 303);
+    }
+
     /* ====== MA NOTE / AVIS ====== */
     /**
      * Page “Ma note” (moyenne + distribution + listes d’avis approuvés/en attente).

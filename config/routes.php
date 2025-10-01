@@ -44,6 +44,21 @@ $router->get('/legal',            [StaticController::class, 'mentions']);
 $router->get('/mentions',         [StaticController::class, 'mentions']);
 $router->get('/mentions_legales', [StaticController::class, 'mentions']);
 
+/* Politique de confidentialité */
+$router->get('/confidentialite',  [StaticController::class, 'confidentialite']);
+$router->get('/confidentiality',  [StaticController::class, 'confidentialite']); // alias EN (au cas où)
+
+/* Conditions Générales d’Utilisation (CGU) */
+$router->get('/cgu',                  [StaticController::class, 'cgu']);
+$router->get('/conditions-generales', [StaticController::class, 'cgu']); // alias FR long
+$router->get('/conditions',           [StaticController::class, 'cgu']); // alias court
+
+/* Contact (affiché uniquement dans le footer côté UI) */
+$router->get('/contact',          [StaticController::class, 'contact']);
+/* Envoi du formulaire de contact (POST) */
+$router->post('/send-contact', [GeneralController::class, 'sendContact']);
+
+
 /* =========================
    Auth
    ========================= */
