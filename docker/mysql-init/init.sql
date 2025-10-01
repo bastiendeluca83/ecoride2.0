@@ -1,20 +1,24 @@
--- docker/mysql-init/init.sql - schéma minimal SQL (rapide)
+/* docker/mysql-init/init.sql - schéma minimal SQL (rapide) */
 CREATE DATABASE IF NOT EXISTS ecoride CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE ecoride;
 
--- Users
+/* Users */
 CREATE TABLE IF NOT EXISTS users (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  pseudo VARCHAR(60) NOT NULL UNIQUE,
+  nom VARCHAR(60) NULL,
+  prenom VARCHAR(60) NULL,
+  adresse VARCHAR(255) NULL,
+  telephone VARCHAR(20) NULL UNIQUE,
   email VARCHAR(120) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
   role ENUM('USER','EMPLOYEE','ADMIN') NOT NULL DEFAULT 'USER',
   credits INT NOT NULL DEFAULT 20,
   is_suspended TINYINT(1) NOT NULL DEFAULT 0,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
--- Vehicles
+/* Vehicles */
 CREATE TABLE IF NOT EXISTS vehicles (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
@@ -26,11 +30,11 @@ CREATE TABLE IF NOT EXISTS vehicles (
   first_reg_date DATE,
   seats INT NOT NULL DEFAULT 4,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  UNIQUE KEY (plate),
+  UNIQUE KEY uq_vehicles_plate (plate),
   INDEX (user_id)
 ) ENGINE=InnoDB;
 
--- Rides
+/* Rides */
 CREATE TABLE IF NOT EXISTS rides (
   id INT AUTO_INCREMENT PRIMARY KEY,
   driver_id INT NOT NULL,
@@ -48,7 +52,7 @@ CREATE TABLE IF NOT EXISTS rides (
   INDEX idx_search (from_city, to_city, date_start)
 ) ENGINE=InnoDB;
 
--- Bookings
+/* Bookings */
 CREATE TABLE IF NOT EXISTS bookings (
   id INT AUTO_INCREMENT PRIMARY KEY,
   ride_id INT NOT NULL,
@@ -58,10 +62,11 @@ CREATE TABLE IF NOT EXISTS bookings (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (ride_id) REFERENCES rides(id) ON DELETE CASCADE,
   FOREIGN KEY (passenger_id) REFERENCES users(id) ON DELETE CASCADE,
-  INDEX (ride_id), INDEX (passenger_id)
+  INDEX (ride_id),
+  INDEX (passenger_id)
 ) ENGINE=InnoDB;
 
--- Plateforme (crédits prélevés)
+/* Plateforme (crédits prélevés) */
 CREATE TABLE IF NOT EXISTS penalties_platform (
   id INT AUTO_INCREMENT PRIMARY KEY,
   ride_id INT NOT NULL,
@@ -70,15 +75,15 @@ CREATE TABLE IF NOT EXISTS penalties_platform (
   FOREIGN KEY (ride_id) REFERENCES rides(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
--- Seeds (démo)
-INSERT IGNORE INTO users(pseudo, email, password_hash, role, credits) VALUES
-('driver1','driver1@example.com', '$2y$10$4mG9GQW7b0u0G4n9QH7WzOjzYzQZpGJ5vXoY3vJkVYJg5l8kHqW8G', 'USER', 50), -- mdp: test1234
-('user1','user1@example.com', '$2y$10$4mG9GQW7b0u0G4n9QH7WzOjzYzQZpGJ5vXoY3vJkVYJg5l8kHqW8G', 'USER', 20),
-('admin','admin@example.com', '$2y$10$4mG9GQW7b0u0G4n9QH7WzOjzYzQZpGJ5vXoY3vJkVYJg5l8kHqW8G', 'ADMIN', 999);
+/* Seeds (démo) — utiliser NULL pour telephone (colonne UNIQUE) */
+INSERT INTO users (nom, prenom, adresse, telephone, email, password_hash, role, credits) VALUES
+('driver1', NULL, NULL, NULL, 'driver1@example.com', '$2y$10$PsW5BWZ6dOGkcZI6cIN88uwahU.Q/xeIYr25P6/.hUNr7SpyUEZG2', 'USER', 50),
+('user1',   NULL, NULL, NULL, 'employee@example.com',   '$2y$10$PsW5BWZ6dOGkcZI6cIN88uwahU.Q/xeIYr25P6/.hUNr7SpyUEZG2', 'USER', 20),
+('admin',   NULL, NULL, NULL, 'admin@example.com',   '$2y$10$PsW5BWZ6dOGkcZI6cIN88uwahU.Q/xeIYr25P6/.hUNr7SpyUEZG2', 'ADMIN', 999);
 
-INSERT IGNORE INTO vehicles(user_id, brand, model, color, energy, plate, first_reg_date, seats) VALUES
+INSERT INTO vehicles (user_id, brand, model, color, energy, plate, first_reg_date, seats) VALUES
 (1, 'Tesla', 'Model 3', 'black', 'ELECTRIC', 'AA-123-AA', '2021-06-01', 4);
 
-INSERT IGNORE INTO rides(driver_id, vehicle_id, from_city, to_city, date_start, date_end, price, seats_left, is_electric_cached) VALUES
-(1, 1, 'Paris', 'Lyon', '2025-08-15 08:00:00', '2025-08-15 12:00:00', 10, 3, 1),
-(1, 1, 'Paris', 'Lille', '2025-08-16 09:00:00', '2025-08-16 11:30:00', 8, 2, 1);
+INSERT INTO rides (driver_id, vehicle_id, from_city, to_city, date_start, date_end, price, seats_left, is_electric_cached) VALUES
+(1, 1, 'Paris', 'Lyon',  '2025-08-15 08:00:00', '2025-08-15 12:00:00', 10, 3, 1),
+(1, 1, 'Paris', 'Lille', '2025-08-16 09:00:00', '2025-08-16 11:30:00',  8, 2, 1);

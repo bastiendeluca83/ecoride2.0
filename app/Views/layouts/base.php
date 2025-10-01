@@ -1,0 +1,423 @@
+<?php
+/* app/Views/layouts/base.php
+ * ---------------------------
+ * Layout global de l’app (header, nav, modales, footer, scripts).
+ * Les vues l’injectent via View::render() / BaseController::render() en passant
+ * éventuellement $title, $meta, $pageStyles, $pageScripts, $bodyClass et $content.
+ */
+
+if (session_status() === PHP_SESSION_NONE) {
+    session_start(); // j’ai besoin de la session pour user, csrf, flashes, etc.
+}
+
+/* Valeurs par défaut (au cas où le contrôleur ne fournit rien) */
+$title       = $title       ?? 'EcoRide – Covoiturage écologique';
+$meta        = $meta        ?? [];
+$pageStyles  = $pageStyles  ?? '';
+$pageScripts = $pageScripts ?? '';
+$bodyClass   = $bodyClass   ?? '';
+
+/* Contexte utilisateur (affichage conditionnel dans le header) */
+$user    = $_SESSION['user'] ?? null;
+$role    = $user['role'] ?? null;
+$credits = isset($user['credits']) ? (int)$user['credits'] : null;
+
+/* CSRF global (utilisé dans les formulaires du header) */
+if (empty($_SESSION['csrf'])) {
+    $_SESSION['csrf'] = bin2hex(random_bytes(32));
+}
+
+/* URL courante (utile pour redirect après login/logout) */
+$currentUrl = $_SERVER['REQUEST_URI'] ?? '/';
+
+/* Détection de section pour du micro-style/layout */
+$isCovoiturage  = (strpos($currentUrl ?? '/', '/covoiturage') === 0);
+$isMentions     = (strpos($currentUrl ?? '/', '/mentions-legales') === 0);
+
+/* Avatar : j’accepte des chemins relatifs (stockés en DB) ou je génère un avatar par défaut */
+$avatarPath = $user['avatar_path'] ?? '';
+if ($avatarPath && $avatarPath[0] !== '/') {
+    $avatarPath = '/'.$avatarPath;
+}
+$avatarUrl = $avatarPath ?: ("https://api.dicebear.com/9.x/initials/svg?seed=" . urlencode($user['nom'] ?? 'guest'));
+
+/* Messages d’erreurs d’auth (pour la modale) véhiculés par query ?error= */
+$errorMessage = '';
+if (isset($_GET['error'])) {
+    switch ($_GET['error']) {
+        case 'badcreds':  $errorMessage = "Identifiants invalides. Vérifiez votre email et votre mot de passe."; break;
+        case 'suspended': $errorMessage = "Votre compte est suspendu. Contactez l'administrateur."; break;
+        case 'csrf':      $errorMessage = "Session expirée. Merci de réessayer."; break;
+    }
+}
+
+/* Flash messages : je les consomme ici puis je les enlève */
+$flashes = $_SESSION['flash'] ?? [];
+unset($_SESSION['flash']);
+
+/* Bannière “profil incomplet” : uniquement pour le rôle USER (pas ADMIN/EMPLOYEE) */
+$profileBannerHtml = '';
+$showProfileBanner = ($role === 'USER'); // condition centrale
+
+if ($showProfileBanner) {
+    try {
+        if ($user && !empty($user['id'])) {
+            // je rafraîchis les infos en session pour éviter d’afficher un vieux profil
+            $fresh = \App\Models\User::findById((int)$user['id']);
+            if ($fresh) {
+                $_SESSION['user'] = $user = array_merge($user, $fresh);
+            }
+            // le Model me renvoie si le profil est complet + la liste des champs manquants
+            $check = \App\Models\User::isProfileComplete((int)$user['id']);
+            if (!$check['complete']) {
+                $labels = [
+                    'nom'=>'nom','prenom'=>'prénom','email'=>'email','telephone'=>'téléphone',
+                    'adresse'=>'adresse','avatar'=>'photo de profil',
+                    'preferences'=>'préférences (fumeur, animaux, musique, discussion, clim)'
+                ];
+                $missing = array_map(fn($k)=>$labels[$k] ?? $k, $check['missing']);
+                $txt = "Complétez votre profil : ".htmlspecialchars(implode(', ', $missing)).".";
+                // petite bannière Bootstrap avec CTA vers l’édition de profil
+                $profileBannerHtml = '
+                <div class="alert alert-warning border-0 rounded-0 mb-0 alert-dismissible fade show" role="alert">
+                  <div class="container d-flex flex-wrap align-items-center gap-2">
+                    <i class="fas fa-user-edit me-1"></i>
+                    <strong>Profil incomplet.</strong>
+                    <span class="me-2">'.$txt.'</span>
+                    <a class="btn btn-sm btn-outline-dark" href="/profil/edit">Compléter maintenant</a>
+                  </div>
+                  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
+                </div>';
+            }
+        }
+    } catch (\Throwable $e) { /* je ne casse pas l’affichage si le check échoue */ }
+}
+
+/* Helper local pour échapper les meta/titres */
+$e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+?>
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><?= $e($title) ?></title>
+
+<?php
+/* Meta par défaut (description) si non fournie par la page */
+if (empty($meta['description'])) {
+    $meta['description'] = "EcoRide, plateforme de covoiturage écoresponsable.";
+}
+/* Page Mentions légales : je préfère noindex pour éviter l’indexation */
+if ($isMentions && empty($meta['robots'])) {
+    $meta['robots'] = 'noindex,follow';
+}
+/* Open Graph basique : je complète si manquant */
+$ogDefaults = [
+    'og:title'       => $title,
+    'og:description' => $meta['description'] ?? '',
+    'og:type'        => 'website',
+];
+foreach ($ogDefaults as $k => $v) {
+    if (empty($meta[$k]) && $v) $meta[$k] = $v;
+}
+?>
+
+<?php foreach ($meta as $name => $contentMeta): ?>
+  <meta name="<?= $e($name) ?>" content="<?= $e($contentMeta) ?>">
+<?php endforeach; ?>
+
+<!-- Styles globaux -->
+<link rel="icon" type="image/png" href="/assets/img/favicon-emp.png">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+<link rel="stylesheet" href="/assets/css/style.css">
+<link rel="stylesheet" href="/assets/css/app.css">
+<style>
+  .navbar .dropdown-menu { z-index: 2000; } /* j’évite que le dropdown passe derrière la modale */
+  .avatar{width:32px;height:32px;object-fit:cover;border-radius:50%;}
+  /* j’uniformise ici la couleur de la bande footer sur le même vert que la navbar */
+  .footer-green{ background-color:#18a558; }
+  .footer-link{ color:#fff; text-decoration:none; }
+  .footer-link:hover, .footer-link:focus{ text-decoration:underline; }
+</style>
+<?= $pageStyles /* hook pour des styles spécifiques à une page */ ?>
+</head>
+<body class="<?= $e($bodyClass) ?> bg-light d-flex flex-column min-vh-100">
+<!-- Barre de navigation (header global) -->
+<nav class="navbar navbar-expand-lg navbar-light" style="background-color:#18a558;">
+  <div class="container">
+    <a class="navbar-brand d-flex align-items-center text-white" href="/">
+      <img src="/assets/img/favicon-emp.png" alt="EcoRide" style="height:36px" class="me-2">
+      <span class="fw-semibold">EcoRide</span>
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Afficher le menu">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div class="collapse navbar-collapse" id="mainNav">
+      <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
+        <!-- Accueil -->
+        <li class="nav-item">
+          <a class="nav-link text-white<?= ($currentUrl === '/' ? ' active fw-semibold' : '') ?>" href="/">Accueil</a>
+        </li>
+
+        <!-- Covoiturage -->
+        <li class="nav-item">
+          <a class="nav-link text-white<?= ($isCovoiturage ? ' active fw-semibold' : '') ?>" href="<?= defined('BASE_URL') ? BASE_URL.'covoiturage' : '/covoiturage' ?>">
+            <i class="fas fa-users me-1"></i> Covoiturage
+          </a>
+        </li>
+
+        <?php /* je retire “Contact” de la navbar : il doit rester uniquement dans le footer */ ?>
+
+        <?php if (!$user): ?>
+          <!-- Utilisateur non connecté : bouton pour ouvrir la modale auth -->
+          <li class="nav-item ms-lg-2">
+            <button class="btn btn-light" data-bs-toggle="modal" data-bs-target="#authModal">Connexion</button>
+          </li>
+        <?php else: ?>
+          <!-- Utilisateur connecté : liens selon le rôle -->
+          <?php if ($role === 'ADMIN'): ?>
+            <li class="nav-item"><a class="nav-link text-white" href="/admin">Admin</a></li>
+            <li class="nav-item"><a class="nav-link text-white" href="/employee">Modération</a></li>
+          <?php elseif ($role === 'EMPLOYEE'): ?>
+            <li class="nav-item"><a class="nav-link text-white" href="/employee">Employé</a></li>
+          <?php endif; ?>
+
+          <!-- Menu utilisateur -->
+          <li class="nav-item dropdown ms-lg-3">
+            <a class="nav-link dropdown-toggle d-flex align-items-center text-white" href="#" id="userMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <img src="<?= $e($avatarUrl) ?>" alt="avatar" class="avatar me-2">
+              <span class="fw-semibold"><?= $e($user['nom'] ?? 'Profil') ?></span>
+              <?php if ($role === 'USER' && $credits !== null): ?>
+                <span class="badge bg-light text-dark ms-2"><?= (int)$credits ?> cr.</span>
+              <?php endif; ?>
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
+              <li><a class="dropdown-item" href="/dashboard">Mon profil</a></li>
+              <?php if ($role === 'ADMIN'): ?>
+                <li><a class="dropdown-item" href="/admin">Espace admin</a></li>
+                <li><a class="dropdown-item" href="/employee">Espace employé</a></li>
+                <li><hr class="dropdown-divider"></li>
+              <?php elseif ($role === 'EMPLOYEE'): ?>
+                <li><a class="dropdown-item" href="/employee">Espace employé</a></li>
+                <li><hr class="dropdown-divider"></li>
+              <?php else: ?>
+                <li><hr class="dropdown-divider"></li>
+              <?php endif; ?>
+              <li>
+                <!-- Déconnexion en POST + CSRF ; je renvoie sur la page courante -->
+                <form action="/logout" method="post" class="px-3">
+                  <input type="hidden" name="csrf" value="<?= $e($_SESSION['csrf']) ?>">
+                  <input type="hidden" name="redirect" value="<?= $e($currentUrl) ?>">
+                  <button class="btn btn-link p-0 text-danger">Déconnexion</button>
+                </form>
+              </li>
+            </ul>
+          </li>
+        <?php endif; ?>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<?php if (!$user): ?>
+<!-- Modale Auth : tabs Connexion / Inscription (onboard rapide) -->
+<div class="modal fade" id="authModal" tabindex="-1" aria-hidden="true" aria-labelledby="authTitle">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 rounded-4 shadow">
+      <div class="modal-header border-0">
+        <h5 class="modal-title fw-bold" id="authTitle">Bienvenue sur EcoRide</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+      </div>
+
+      <div class="px-3">
+        <ul class="nav nav-pills gap-2 mb-3" id="authTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="tab-login" data-bs-toggle="tab" data-bs-target="#pane-login" type="button" role="tab" aria-controls="pane-login" aria-selected="true">Connexion</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-signup" data-bs-toggle="tab" data-bs-target="#pane-signup" type="button" role="tab" aria-controls="pane-signup" aria-selected="false">Inscription</button>
+          </li>
+        </ul>
+      </div>
+
+      <div class="tab-content px-3 pb-3">
+        <?php if (!empty($errorMessage)): ?>
+          <div class="alert alert-danger mb-3"><?= $e($errorMessage) ?></div>
+        <?php endif; ?>
+
+        <!-- Connexion -->
+        <div class="tab-pane fade show active" id="pane-login" role="tabpanel" aria-labelledby="tab-login">
+          <form method="post" action="/login" class="needs-validation" novalidate>
+            <input type="hidden" name="csrf" value="<?= $e($_SESSION['csrf']) ?>">
+            <input type="hidden" name="redirect" value="<?= $e($currentUrl) ?>">
+            <div class="mb-3">
+              <label for="loginId" class="form-label">Email ou nom</label>
+              <input type="text" class="form-control" id="loginId" name="email" required>
+              <div class="invalid-feedback">Veuillez saisir votre email ou votre nom.</div>
+            </div>
+            <div class="mb-3">
+              <label for="loginPass" class="form-label">Mot de passe</label>
+              <input type="password" class="form-control" id="loginPass" name="password" required>
+              <div class="invalid-feedback">Mot de passe requis.</div>
+            </div>
+            <button type="submit" class="btn btn-success w-100">Se connecter</button>
+          </form>
+        </div>
+
+        <!-- Inscription -->
+        <div class="tab-pane fade" id="pane-signup" role="tabpanel" aria-labelledby="tab-signup">
+          <form method="post" action="/signup" class="needs-validation" novalidate id="signupForm">
+            <input type="hidden" name="csrf" value="<?= $e($_SESSION['csrf']) ?>">
+            <input type="hidden" name="redirect" value="<?= $e($currentUrl) ?>">
+
+            <div class="mb-3">
+              <label class="form-label" for="snNom">Nom</label>
+              <input type="text" class="form-control" id="snNom" name="nom" required>
+              <div class="invalid-feedback">Nom requis.</div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="snPrenom">Prénom</label>
+              <input type="text" class="form-control" id="snPrenom" name="prenom">
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="snAdresse">Adresse</label>
+              <input type="text" class="form-control" id="snAdresse" name="adresse">
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="snTel">Téléphone</label>
+              <input type="tel" class="form-control" id="snTel" name="telephone" placeholder="06 12 34 56 78">
+              <div class="form-text">Optionnel. Chiffres et espaces uniquement.</div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="snEmail">Adresse email</label>
+              <input type="email" class="form-control" id="snEmail" name="email" required>
+              <div class="invalid-feedback">Merci de saisir un email valide.</div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="snPass">Mot de passe</label>
+              <input type="password" class="form-control" id="snPass" name="password" minlength="8" required>
+              <div class="invalid-feedback">Minimum 8 caractères.</div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="snPass2">Confirmer le mot de passe</label>
+              <input type="password" class="form-control" id="snPass2" name="password_confirm" minlength="8" required>
+              <div class="invalid-feedback">Les mots de passe doivent correspondre.</div>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">S'inscrire</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+
+<!-- Ruban haut “branding” -->
+<div class="bg-success-subtle border-bottom border-success py-2">
+  <div class="container d-flex align-items-center gap-3">
+    <i class="fas fa-leaf text-success"></i>
+    <strong class="text-success">EcoRide</strong>
+    <span class="text-muted">— Covoiturage écologique</span>
+  </div>
+</div>
+
+<!-- Bannière profil incomplet (si applicable) -->
+<?= $profileBannerHtml ?>
+
+<!-- Flash messages globaux (success/danger/warning/info) -->
+<div class="container mt-3">
+<?php if (!empty($flashes)): ?>
+  <div class="mb-3">
+    <?php foreach ($flashes as $f): ?>
+      <?php
+        $type = $f['type'] ?? 'info';
+        $text = $f['text'] ?? '';
+        $bs = [
+          'success' => 'alert-success',
+          'danger'  => 'alert-danger',
+          'warning' => 'alert-warning',
+          'info'    => 'alert-info',
+        ][$type] ?? 'alert-secondary';
+      ?>
+      <div class="alert <?= $bs ?> alert-dismissible fade show" role="alert">
+        <?= $text ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
+      </div>
+    <?php endforeach; ?>
+  </div>
+<?php endif; ?>
+</div>
+
+<!-- Contenu principal -->
+<main class="flex-grow-1 py-4">
+  <?php if ($isCovoiturage): ?>
+    <!-- Pleine largeur uniquement pour /covoiturage -->
+    <?= $content ?? '' ?>
+  <?php else: ?>
+    <!-- Layout standard pour toutes les autres pages -->
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="col-12 col-lg-10 col-xl-8">
+          <?= $content ?? '' ?>
+        </div>
+      </div>
+    </div>
+  <?php endif; ?>
+</main>
+
+<!-- Footer : une seule bande verte (même vert que la navbar), avec tout dedans -->
+<footer class="mt-auto">
+  <div class="footer-green text-white py-3">
+    <div class="container d-flex flex-column flex-lg-row align-items-center justify-content-between gap-3">
+      <!-- à gauche : liens légaux (et Contact qui reste ici uniquement) -->
+      <ul class="list-unstyled d-flex flex-wrap align-items-center gap-4 mb-0">
+        <li><a class="footer-link" href="/confidentialite">Politique de confidentialité</a></li>
+        <li><a class="footer-link<?= $isMentions ? ' fw-semibold' : '' ?>" href="/mentions-legales">Mentions légales</a></li>
+        <li><a class="footer-link" href="/cgu">CGU</a></li>
+        <li><a class="footer-link" href="/contact">Contact</a></li>
+      </ul>
+
+      <!-- au centre/droite : email + copyright (tout dans la même barre) -->
+      <div class="d-flex flex-wrap align-items-center gap-4 ms-lg-auto">
+        <div class="small">
+          <i class="fas fa-envelope me-1 opacity-75"></i>
+          <a class="footer-link" href="mailto:ecoride.demo@gmail.com">ecoride.demo@gmail.com</a>
+        </div>
+        <div class="small text-white-75">© <?= date('Y') ?> EcoRide. Tous droits réservés.</div>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<!-- JS Bootstrap + validation côté client pour les formulaires requis -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+<script>
+(() => {
+  'use strict';
+  // validation Bootstrap : je bloque la soumission si champs invalides
+  document.querySelectorAll('.needs-validation').forEach(form => {
+    form.addEventListener('submit', e => {
+      if (!form.checkValidity()) {
+        e.preventDefault(); e.stopPropagation();
+      }
+      form.classList.add('was-validated');
+    }, false);
+  });
+  // vérif live “password == confirm”
+  const f = document.getElementById('signupForm');
+  if (f) {
+    const p1 = document.getElementById('snPass');
+    const p2 = document.getElementById('snPass2');
+    const check = () => { p2.setCustomValidity(p1.value && p2.value && p1.value !== p2.value ? 'Mismatch' : ''); };
+    p1 && p1.addEventListener('input', check);
+    p2 && p2.addEventListener('input', check);
+  }
+})();
+</script>
+<script src="/assets/js/app.js"></script>
+<?= $pageScripts /* hook pour des scripts spécifiques à une page */ ?>
+</body>
+</html>
