@@ -33,7 +33,7 @@ final class Mongo
         if (self::$db) return self::$db;
 
         // lecture des variables d'environnement avec des valeurs par défaut safe en dev
-        $uri  = getenv('MONGO_URI') ?: 'mongodb://localhost:27017';
+        $uri  = getenv('MONGO_URI') ?: '';
         $name = getenv('MONGO_DB')  ?: 'ecoride';
 
         try {
